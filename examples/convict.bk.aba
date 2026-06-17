@@ -1,0 +1,29 @@
+% BK
+convicted(X) :- witness_con(X,Y), reliable(Y).
+reliable(X) :- person(X), not_unreliable(X).
+unreliable(X) :- person(X), not_reliable(X).
+witness_con(mary,alex).
+witness_con(david,carol).
+witness_con(john,carol).
+caught_in_the_act(bob).
+trustworthy(alex).
+trustworthy(carol).
+unadmissible(alex). % Statements obtained through coercion
+
+person(alex).
+person(bob).
+person(carol).
+person(mary).
+person(david).
+person(john).
+
+assumption(not_reliable(X)).
+assumption(not_unreliable(X)).
+contrary(not_reliable(X),reliable(X)) :- assumption(not_reliable(X)).
+contrary(not_unreliable(X),unreliable(X)) :- assumption(not_unreliable(X)).
+
+% xabal('./examples/convict.bk',[],[]).
+% xabal('./examples/convict.bk',[convicted(bob),convicted(john),convicted(david)],[convicted(mary)]).
+
+
+

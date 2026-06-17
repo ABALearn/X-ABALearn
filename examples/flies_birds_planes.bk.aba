@@ -1,0 +1,14 @@
+% Flies example from DK-95 + planes
+
+bird(A) :- penguin(A).
+penguin(A) :- superpenguin(A).
+bird(A) :- A=woodstock.
+bird(A) :- A=tweety.
+penguin(A) :- A=pingu.
+superpenguin(A) :- A=x_pingu.
+plane(X) :- X=b777.
+plane(X) :- X=a380.
+plane(X) :- X=b747.
+under_maint(X) :- X=b747.
+
+% xabal('./examples/flies_birds_planes.bk',[flies(woodstock),flies(tweety),flies(x_pingu),flies(b777),flies(a380)],[flies(pingu),flies(b747)]).

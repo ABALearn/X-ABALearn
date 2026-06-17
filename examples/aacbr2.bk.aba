@@ -1,0 +1,21 @@
+% AA-CBR example 2
+
+% BK
+f1(a).
+f2(a).
+f1(b).
+f2(b).
+f3(b).
+
+cn(X) :- domain(X), alpha(X). 
+
+domain(a).
+domain(b).
+
+assumption(alpha(X)).
+contrary(alpha(X),c_alpha(X)) :- assumption(alpha(X)).
+
+% xabal('./examples/aacbr2.bk',[cn(b)],[cn(a)]).
+
+dom(a).
+dom(b).

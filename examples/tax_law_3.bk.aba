@@ -1,0 +1,29 @@
+% BK
+pays_taxes_in_uk(X) :- person(X), nonexempt(X).
+
+person(a).
+person(b).
+person(c).
+person(d).
+
+low_income(a).
+high_income(b).
+high_income(c).
+high_income(d).
+
+resident(a,uk).
+resident(b,uk).
+resident(c,fr).
+resident(d,xx).
+
+country(uk).
+country(fr).
+country(xx).
+
+tax_agreement(fr,uk).
+
+% assumption:
+assumption(nonexempt(X)).
+contrary(nonexempt(X),exempt(X)) :- assumption(exempt(X)).
+
+% xabal('./examples/tax_law_3.bk', [pays_taxes_in_uk(b),pays_taxes_in_uk(d)],[pays_taxes_in_uk(a),pays_taxes_in_uk(c)]).

@@ -1,0 +1,12 @@
+% BK
+quaker(a).
+quaker(b).
+
+republican(a).
+republican(b).
+
+%is_a(a).
+%is_b(b).
+
+% set_lopt(learning_mode(brave)).
+% xabal('./examples/nixon_diamond.bk',[pacifist(a)],[pacifist(b)]).

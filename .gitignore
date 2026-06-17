@@ -1,0 +1,8 @@
+.DS_Store
+cc.clingo
+clingo.stderr.*
+asp.clingo
+cc.pl
+*.sol*
+*.csv
+*.log

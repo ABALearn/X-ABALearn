@@ -1,0 +1,33 @@
+% BK
+quaker(a).
+quaker(b).
+quaker(e).
+
+democrat(c).
+
+republican(a).
+republican(b).
+republican(d).
+
+person(a).
+person(b).
+person(c).
+person(d).
+person(e).
+
+pacifist(X) :- quaker(X), normal_quaker(X).
+
+democrat(X) :- person(X), votes_dem(X).
+republican(X) :- person(X), votes_rep(X).
+
+assumption(votes_dem(X)). 
+assumption(votes_rep(X)). 
+assumption(normal_quaker(X)).
+
+contrary(votes_rep(A),democrat(A)) :- assumption(votes_rep(A)).
+contrary(votes_dem(A),republican(A)) :- assumption(votes_dem(A)).
+contrary(normal_quaker(A),abnormal_quaker(A)) :- assumption(normal_quaker(A)).
+
+% xabal('examples/nixon_diamond_2.bk',[pacifist(a)],[pacifist(b)]).
+% xabal('examples/nixon_diamond_2.bk',[pacifist(c),pacifist(a)],[pacifist(d),pacifist(b)]).
+% xabal('examples/nixon_diamond_2.bk',[pacifist(a),pacifist(c),pacifist(e)],[pacifist(b),pacifist(d)]).
