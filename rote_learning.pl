@@ -19,7 +19,7 @@ roLe(Ri,Ep0,En0,Ep,En, RL,Ro) :-
 % roLe(+Ri,+Ep0,+En0,+Ep,+En, -RL,-Ro)
 % rote learning of Ep and En
 roLe_aux(Ri,Ep0,En0,Ep,En, RLRs,Ro) :-
-  lopt(learning_mode(brave)),
+  %lopt(learning_mode(brave)),
   !,
   learnable_predicates(Ri,Ep,En, Ls),
   % compute the set of sets representing solutions to the learning problem
@@ -33,15 +33,15 @@ roLe_aux(Ri,Ep0,En0,Ep,En, RL,Ro) :-
   lopt(learning_mode(cautious)),
   !, 
   % learn positive examples
-  compute_conseq(Ri, [CA]),
+  compute_conseq(Ri, CA),
   findall(R1, ( member(P,Ep),      % P is a positive example
-                \+ member(P,CA),   % P is not a consequence of R
+                \+ member(P,[CA]),   % P is not a consequence of R
                 e_rote_learn(P,R1) % R1 is the rote learning of P
               ), LP),
   % learn contraries (c_alpha)
   learnable_predicates(Ri,Ep,En, Ls),   
   asp(Ri,Ep0,En0,Ep,En,Ls, S),
-  compute_conseq(S, [CS]),          % fails if S is unsatisfiable
+  compute_conseq(S, CS),          % fails if S is unsatisfiable
   aba_cnts(Ri,U),
   findall(R2, ( % C_Alpha is a contrary of an assumption
                 member(contrary(_,C_Alpha),U),
@@ -51,7 +51,7 @@ roLe_aux(Ri,Ep0,En0,Ep,En, RL,Ro) :-
                 atom_concat(C,'_P',CP),
                 C_AlphaP =.. [CP|V],
                 % C_AlphaP is a conseq. of R extended w/generators & ic
-                member(C_AlphaP,CS),
+                member(C_AlphaP,[CS]),
                 % C_Alpha1 is not a conseq. of R (the member above instantiates the arguments of C_Alpha1)
                 \+ member(C_Alpha1,CA),
                 % R2 is the rote learning of C 

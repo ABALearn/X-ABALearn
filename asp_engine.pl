@@ -15,7 +15,6 @@
     [  compute_conseq/2 % compute brave/cautious conseq. and assert them
     ,  entails/5
     ,  rote_lerning_solver/7
-    ,  subsumed/6
     ]).
 
 
@@ -52,22 +51,34 @@ compute_conseq(Rs, Cs) :-
   read_all(Cs),
   seen,
   shell('rm -f clingo.stderr.log',_).
-compute_conseq(Rs, Cs) :-
+compute_conseq(Rs, [S1]) :-
   lopt(learning_mode(cautious)),
+  utl_rules_append(Rs,[directive(show,gi/1)], Rs1),
+  % write rules to file
+  dump_rules(Rs1),
+  % invoke clingo to compute the consequences of Rs and write them to cc.clingo
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.log',_),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
+  shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE1),
+  EXIT_CODE1 == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
+  see('cc.pl'),
+  % read 'cc.clingo' and assert it into the database
+  read_all(Cs1), % Cs is a singleton  
+  seen, 
+  %%%%
   % write rules to file
   dump_rules(Rs),
   % invoke clingo to compute the consequences of Rs and write them to cc.clingo
-  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore --enum-mode=cautious > cc.clingo 2>> clingo.stderr.log',_),
-  shell('cat cc.clingo | grep \'^SATISFIABLE\'  > /dev/null',EXIT_CODE),
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore -n0 > cc.clingo 2>> clingo.stderr.log',_),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
+  shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE),
   EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
-  !,
-  shell('echo \'[\' > cc.pl'),
-  shell('cat cc.clingo | grep -A1 \'^Answer:\' | tail -n -1 >> cc.pl'),
-  shell('echo \'].\' >> cc.pl'),
+  !, 
   see('cc.pl'),
   % read 'cc.clingo' and assert it into the database
-  read_all(Cs), % Cs is a singleton
+  read_all_ord(Cs), 
   seen,
+  diffall(Cs1,Cs,S1),
   shell('rm -f clingo.stderr.log',_).
 compute_conseq(_, []) :-
   shell('cat cc.clingo | grep \'^UNSATISFIABLE\' > /dev/null',EXIT_CODE),
@@ -80,6 +91,29 @@ read_all([A|As]) :-
   !,
   read_all(As).
 read_all([]).
+% assert all terms from file
+read_all_ord([O|Os]) :-
+  read(A),
+  A \== end_of_file,
+  !,
+  sort(A,O),
+  read_all_ord(Os).
+read_all_ord([]).
+
+%
+diffall([Cs1],Cs,O) :-
+  findall(F,member(gi(F),Cs1),FCs), 
+  sort(FCs,S),
+  !, 
+  ord(S,O),
+  \+ memberchk(O,Cs).
+  
+%
+ord([H|_],[H]).
+ord([_|T],S) :-
+  ord(T,S).
+ord([H|T],[H|S]) :-
+  ord(T,S).
 
 % -----------------------------------------------------------------------------
 % Ri subsumes rule R
@@ -139,28 +173,10 @@ entails(R,Ep0,En0,Ep,En) :-
 entails(R,Ep0,En0,Ep,En) :-
   lopt(learning_mode(cautious)),
   !,
-  asp(R,[],[],[],[],[], A), % NO ic for positive and negative examples
+  asp(R,Ep0,En0,Ep,En,[], A),
+  % write rules to file
   dump_rules(A),
   % invoke clingo to compute the consequences of Rs and write them to cc.clingo
-  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore --enum-mode=cautious > cc.clingo 2>> clingo.stderr.log',_EXIT_CODE),
-  shell('cat cc.clingo | grep \'^SATISFIABLE\'  > /dev/null',EXIT_CODE),
-  EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
-  shell('echo \'[\' > cc.pl'),
-  shell('cat cc.clingo | grep -A1 \'^Answer:\' | tail -n -1 >> cc.pl'),
-  shell('echo \'].\' >> cc.pl'),
-  see('cc.pl'),
-  % read 'cc.clingo' and assert it into the database
-  read(As),
-  seen,
-  append(Ep0,Ep,Ep1), append(En0,En,En1),
-  entails_cautious(Ep1,En1,As).
-% entails (cautious) utility predicate
-entails_cautious([],[],_Cs).
-entails_cautious([E|Ep],En,Cs) :-
-  member(E,Cs),
-  !,
-  entails_cautious(Ep,En,Cs).
-entails_cautious([],[E|En],Cs) :-
-  \+ member(E,Cs),
-  !,
-  entails_cautious([],En,Cs).
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.txt',_EXIT_CODE),
+  shell('cat cc.clingo | grep \'^UNSATISFIABLE\'  > /dev/null',EXIT_CODE),
+  EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'  

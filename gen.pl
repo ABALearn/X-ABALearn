@@ -68,7 +68,8 @@ gen2(Ri,Ep0,En0,Ep,En,F, Rf) :-
     member(RgAS, Cs)
     ; 
     ( write('gen2: extended ABA w/new assumption has no extensions!'), nl, fail ) 
-  ), 
+  ),
+  write(' selected set: '), write(RgAS), nl,
   gen4(Ri,Ep0,En0,Ep,En,F,Ra,A,RgAS,FwAP, Rf).
 % gen3 - OLD assumption found
 gen3(Ri,Ep0,En0,Ep,En,_F,FwA, Rf) :-
@@ -112,7 +113,7 @@ gen5(_Ri,Ep0,En0,Ep,En,_F,Ra,A,RgAS,FwAP, Rf) :-
 gen6(Ra,Ep0,En0,Ep,En,A,RgAS,FwAP, Rf) :-
   write('gen6: rote learning of new contrary'), nl,
   functor(A,AF,N),
-  atom_concat('c_',AF,C_A), 
+  atom_concat('c_',AF,C_A),
   % rote learning
   findall(R, ( functor(C,C_A,N),member(C,RgAS), e_rote_learn(C,R) ), Rs),
   aba_ni_rules_append(Ra,Rs,Ra1),
@@ -193,7 +194,6 @@ select_foldable(Ri,_Ep0,_En0,_Ep,_En, S,Ro) :-
 % select_foldable auxiliary predicate
 select_foldable_aux(X,Ri,Ep0,En0,Ep,En, S,Ro) :-
   write(' evaluating subsumption of '), show_rule(X), nl,
-  %subsumed(Ri,Ep0,En0,Ep,En, X),
   entails(Ri,Ep0,En0,Ep,En),
   !,
   write(' * subsumed: deleted!'), nl, 
@@ -278,18 +278,6 @@ select_mgr_to_fold_aux_chk(R1,N1-[ID1,P/N,G1],N2-[ID2,P/N,G2],_, N2-[ID2,P/N,G2]
   % select rule with identifier ID2
   aba_ni_rules_select(X,R1,R2),
   write(' * > '), write(ID1), write(' < deleted!'), nl.    
-
-% % subsumption(+Ri,+Ep,+En, -Ro)
-% % Ro is the result obained by removing all subsumed nonintensional rules from Ri
-% subsumption(Ri,Ep,En, Ro) :-
-%   aba_ni_rules(Ri,NiR), length(NiR,N),  write(' evaluating subsumption of '), write(N), write(' rules'), nl,
-%   aba_ni_rules_select(R,Ri,Ri1),
-%   write(' evaluating subsumption of '), show_rule(R), nl, 
-%   subsumed(Ri1,Ep,En, R),
-%   !,
-%   write(' subsumed: deleted.'), nl, 
-%   subsumption(Ri1,Ep,En, Ro).
-% subsumption(Ri,_,_, Ri).
 
 % nonintensional(+R)
 % R is nonintensional if in the body of R there is an equality of the form X=C, 

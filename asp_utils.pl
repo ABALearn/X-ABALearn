@@ -656,7 +656,10 @@ native_asp_enc(Af,Ep0,En0,Ep,En,[P/N|Ls], ASP) :-
   new_rule({CP1},B1, G), % {p_P} :- B
   new_rule(C1,[CP1], R), % p :- p_P
   copy_term(CP1,CP2),
-  utl_rules_append(Af,[G,R,directive(minimize,{1,CP2:CP2}),directive(show,C_P/N)], Af1),
+  % TODO: add here a rule for cautious reasoning
+  gi_of_cp(CP1,B1,GIofCP),
+  %%%
+  utl_rules_append(Af,[G,R,directive(minimize,{1,CP2:CP2}),directive(show,C_P/N)|GIofCP], Af1),
   native_asp_enc(Af1,Ep0,En0,Ep,En,Ls, ASP).
 native_asp_enc(Af,Ep0,En0,Ep,En,[P/N|Ls], ASP) :-
   atom_concat(P,'_P',P_P), 
@@ -668,7 +671,10 @@ native_asp_enc(Af,Ep0,En0,Ep,En,[P/N|Ls], ASP) :-
   length(V,N), A =.. [P|V], A_P =.. [P_P|V], 
   new_rule(A,[A_P], R), % p :- p_P
   copy_term(A_P,A_P1),
-  utl_rules_append(Af,[G,R,directive(minimize,{1,A_P1:A_P1}),directive(show,P_P/N)], Af1),
+  % add a fact for each possible rule for cautious reasoning (from EpP)
+  gi_of_ep(EpP,GIofEpP),  
+  %%%
+  utl_rules_append(Af,[G,R,directive(minimize,{1,A_P1:A_P1}),directive(show,P_P/N)|GIofEpP], Af1),
   native_asp_enc(Af1,Ep0,En0,Ep,En,Ls, ASP).
 native_asp_enc(Af,Ep0,En0,Ep,En,[_P/_N|Ls], ASP) :-
   % _P/_N is the predicate of a negative examples only
@@ -679,13 +685,63 @@ ep_choice([E],E).
 ep_choice([E|Es],(E;Gs)) :-
   ep_choice(Es,Gs).
 
+%
+gi_of_cp(_CP1,_B1,[]) :-
+  lopt(learning_mode(brave)).
+gi_of_cp(CP1,B1,[G]) :-
+  lopt(learning_mode(cautious)),
+  new_rule(gi(CP1),B1, G).  
+
+%
+gi_of_ep(_EpP,[]) :-
+  lopt(learning_mode(brave)). 
+gi_of_ep([],[]) :-
+  lopt(learning_mode(cautious)).
+gi_of_ep([E|Ep],[G|Gs]) :-
+  lopt(learning_mode(cautious)),
+  new_rule(gi(E),[], G),
+  gi_of_ep(Ep,Gs).
+
+
 % ic(+Ep,+En, I), I is the list of integrity constratints
 % generated from positive Ep and negative examples En
-ic([],[], []).
-ic([],[N|Ns], [ic([N])|Rs]) :-
-  ic([],Ns, Rs).
-ic([P|Ps],Ns, [ic([not P])|Rs]) :-
-  ic(Ps,Ns, Rs).
+ic(Ep,En, I) :-
+  lopt(learning_mode(brave)),
+  !,
+  ic_e(Ep,En, I).
+ic(Ep,En, I) :-
+  lopt(learning_mode(cautious)),
+  !,
+  ( En == [] -> 
+    En1 = []
+  ;
+    findall((not E), member(E,En), En1)
+  ),
+  append(Ep,En1,Ec),
+  ( Ec == [] -> 
+    I = []
+  ;
+    I = [ic(Ec)]
+  ).
+  
+  
+%
+ic_e([],[], []).
+ic_e([],[N|Ns], [ic([N])|Rs]) :-
+  ic_e([],Ns, Rs).
+ic_e([P|Ps],Ns, [ic([not P])|Rs]) :-
+  ic_e(Ps,Ns, Rs).
+    
+
+% MODE: list_to_conj(+Lst, -Conj)
+% TYPE: list_to_conj(list(term), (term1,...,termN))
+% SEMANTICS: generate the conjuntion (term1,...,termN)
+% from the list of terms [term1,...,termN]
+
+list_to_conj([H], H) :- !.
+list_to_conj([H | T], ','(H, Conj)) :-
+  list_to_conj(T, Conj).
+
 
 %
 asm_aux_rules(Ri, Rs) :-
