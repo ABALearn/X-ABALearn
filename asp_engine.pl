@@ -15,9 +15,11 @@
     [  compute_conseq/2 % compute brave/cautious conseq. and assert them
     ,  entails/5
     ,  rote_lerning_solver/7
+    ,  extension/2
+    ,  extension/3
     ]).
 
-
+%
 rote_lerning_solver(Ri,Ep0,En0,Ep,En,Ls, Cs1) :-
   asp(Ri,Ep0,En0,Ep,En,Ls, S),
   compute_conseq(S, Cs),
@@ -180,3 +182,30 @@ entails(R,Ep0,En0,Ep,En) :-
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.txt',_EXIT_CODE),
   shell('cat cc.clingo | grep \'^UNSATISFIABLE\'  > /dev/null',EXIT_CODE),
   EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'  
+
+
+% extension/2  
+extension(ABAF, E) :-
+  extension(ABAF,[], E).
+% extension/3
+extension(ABAF,Ps, E) :-
+  % for each P/N in Ps, add a show directive
+  % if Ps is empty, then the extension includes all the predicates 
+  findall(directive(show,P/N),member(P/N,Ps),Sw),
+  utl_rules_append(ABAF,Sw,Rs),
+  % create the ASP encoding
+  asp(Rs,[],[],[],[],[], RsASP),
+  % write rules to file
+  dump_rules(RsASP),
+  % invoke clingo to compute the answer sets of RsASP and write them to cc.clingo
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore -n0 > cc.clingo 2>> clingo.stderr.log',_),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
+  shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE),
+  EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
+  !, 
+  see('cc.pl'),
+  % read 'cc.clingo'
+  read_all(Cs),
+  % take an extension E from the set of extensions
+  member(E,Cs), 
+  seen.  
