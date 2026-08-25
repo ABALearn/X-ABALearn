@@ -22,8 +22,3 @@ assumption(alpha(X)).
 contrary(alpha(X),c_alpha(X)) :- assumption(alpha(X)).
 
 % xabal('./examples/aacbr3.bk',[cn(a)],[cn(b)]).
-
-dom(a).
-dom(b).
-dom(c).
-

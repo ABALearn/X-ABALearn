@@ -252,46 +252,71 @@ new_asp_rule(H,B, R) :-
 
 %
 rules_aba_utl(Rs, AE) :-
-  findall(R1, (member(R1,Rs),functor(R1,rule,3)), R), 
-  findall(R2, (member(R2,Rs),functor(R2,assumption,1)), A), 
+  findall(R1, (member(R1,Rs),functor(R1,rule,3)), R),
+  findall(R2, (member(R2,Rs),functor(R2,assumption,1)), A),
   findall(R3, (member(R3,Rs),functor(R3,contrary,2)), C),
-  rem_useless_asms_cnts(R,A,C, A1,C1),
-  findall(asm_cnt_dom(Alpha1,C_Alpha1,B1), 
-    ( member(contrary(Alpha,C_Alpha),C1),
-      member(M,R), rule_bd(M,BwA), 
-      select(Alpha,BwA,B),
-      check_asm_dom(Alpha,B),
-      copy_term((Alpha,C_Alpha,B),(Alpha1,C_Alpha1,B1))
-    ), 
-  AD), % ASP encoding of contraries
-  findall(R4, (member(R4,Rs),functor(R4,'dr',1)), D),
-  append(AD,D,Us),
-  update_fwt(R, aba_enc(R,[],A1,C1,[fwt([])|Us]), AE).
+  % generate asm_cnt_dom/3 facts from rules
+  generate_asm_cnt_dom1(R,A,C,[],no, ACD1,FlagI),
+  % generate asm_cnt_dom/3 facts for assumption not occuring in rules  
+  generate_asm_cnt_dom2(C,ACD1,FlagI, ACD2,FlagO),
+  % generate dom/1 facts if there exists an assumption of the native encoding using it, or
+  % you are using the tjm encoding (semantics/1 holds)
+  ( ( FlagO == yes ; lopt(semantics(_)) ) ->
+    ( consts_in_BK(R,[], Cs), findall(dr(dom(C1)), member(C1,Cs), DRs) )
+  ;
+    true
+  ),
+  %
+  append(ACD2,DRs,Us),
+  update_fwt(R, aba_enc(R,[],A,C,[fwt([])|Us]), AE).
+  
+%
+generate_asm_cnt_dom1([],_,_,F,Flag, F,Flag).
+generate_asm_cnt_dom1([R|Rs],A,C,Fi,FlagI, Fo,FlagO) :- 
+  rule_bd(R,BwA), 
+  body_asms(BwA,A, As,Ps),
+  As \= [],
+  !,
+  generate_asm_cnt_dom1_aux(As,C,Ps,Fi,FlagI, Fi1,FlagI1),
+  generate_asm_cnt_dom1(Rs,A,C,Fi1,FlagI1, Fo,FlagO).
+generate_asm_cnt_dom1([_|Rs],A,C,Fi,FlagI, Fo,FlagO) :- 
+  generate_asm_cnt_dom1(Rs,A,C,Fi,FlagI, Fo,FlagO).  
+%
+generate_asm_cnt_dom1_aux([],_,_,F,Flag, F,Flag).
+generate_asm_cnt_dom1_aux([A|As],Cs,Ps,Fi,FlagI, Fo,FlagO) :-
+  member(contrary(A,C_A),Cs),
+  copy_term((A,C_A,Ps),(A1,C_A1,Ps1)),
+  term_variables(A1, Vars),
+  term_variables(Ps1, PsVars),    
+  domains_of(Vars,PsVars,FlagI, B1,FlagI1),
+  append(B1,Ps1,B2),
+  ACD = asm_cnt_dom(A1,C_A1,B2),
+  ( ( member(F,Fi), variant(F,ACD) ) -> Fi1 = Fi ; Fi1 = [ACD|Fi] ),  
+  generate_asm_cnt_dom1_aux(As,Cs,Ps,Fi1,FlagI1, Fo,FlagO).
 
 %
-check_asm_dom(_,_) :-
-  lopt(semantics(_)),
-  !.  
-check_asm_dom(Alpha,[]) :-
-  functor(Alpha,P,N),
-  write('ERROR: '), write(P/N), write(' : is not range restricted!'), nl, 
-  halt. 
-check_asm_dom(_,[_|_]).
+body_asms([],_, [],[]). 
+body_asms([A|B],C, [A|As],Ps) :-
+  member(assumption(A),C),
+  !,
+  body_asms(B,C, As,Ps).
+body_asms([P|B],C, As,[P|Ps]) :-
+  body_asms(B,C, As,Ps).  
 
 %
-rem_useless_asms_cnts(_,[],C, [],C).
-rem_useless_asms_cnts(R,[assumption(A)|As],Cs, [assumption(A)|A1],C1) :-
-  copy_term(A,CpyA),
-  member(M,R), 
-  rule_bd(M,BwA),
-  member(CpyA,BwA),
+generate_asm_cnt_dom2([],AD,Flag, AD,Flag).
+generate_asm_cnt_dom2([contrary(Alpha,_)|Cs],AD,FlagI, AD1,FlagO) :-
+  copy_term(Alpha,Alpha1),
+  memberchk(asm_cnt_dom(Alpha1,_,_),AD),
   !,
-  rem_useless_asms_cnts(R,As,Cs, A1,C1).
-rem_useless_asms_cnts(R,[assumption(A)|As],Cs, A1,C1) :-
-  select(contrary(A,_),Cs,Cs1),
+  generate_asm_cnt_dom2(Cs,AD,FlagI, AD1,FlagO).
+generate_asm_cnt_dom2([contrary(Alpha,C_Alpha)|Cs],AD,_FlagI, [asm_cnt_dom(Alpha1,C_Alpha1,B1)|AD1],FlagO) :-
+  copy_term(contrary(Alpha,C_Alpha),contrary(Alpha1,C_Alpha1)),
   !,
-  rem_useless_asms_cnts(R,As,Cs1, A1,C1).
-
+  term_variables(Alpha1,Vars),
+  domains_of(Vars, B1),
+  generate_asm_cnt_dom2(Cs,AD,yes, AD1,FlagO).
+  
 
 % update_fwt(+ABA1,+Rs, ABA2)
 update_fwt(Rs,aba_enc(R,N,A,C,U1), aba_enc(R,N,A,C,[fwt(FwT2)|U2])) :-
@@ -349,7 +374,7 @@ ftw_key_ids_aux(_,_,[]).
 % read_bk(+File, -Rules):
 % read a read of rules of from File and
 % generate a list of rule/3 terms representing them.
-read_bk(FileName, Rules1) :-
+read_bk(FileName, Rules) :-
   % initialize rule identifier
   retractall(rid(_)),
   assert(rid(1)),
@@ -364,12 +389,7 @@ read_bk(FileName, Rules1) :-
   retractall(bksize(_)),
   BKSize is ID-1, 
   assert(bksize(BKSize)),
-  preds_in_BK(Rules),
-  ( lopt(semantics(_)) ->
-    ( consts_in_BK(Rules,[], Cs), findall(dr(dom(C)), member(C,Cs), DRs), append(Rules,DRs, Rules1) )
-  ;
-    Rules = Rules1
-  ).
+  preds_in_BK(Rules).
 % read_bk/2 utility predicate: 
 % read all terms from Stream and
 % generate the corresponding rule/3 terms
@@ -868,6 +888,15 @@ term_variables_w_domains(T, V,D) :-
 domains_of([], []).
 domains_of([T|Ts], [dom(T)|TwD]) :-
   domains_of(Ts, TwD).
+
+% 
+domains_of([],_,Flag, [],Flag).
+domains_of([T|Ts],Vars,FlagI, TwD,FlagO) :-
+  memberchk_eq(T,Vars),
+  !,
+  domains_of(Ts,Vars,FlagI, TwD,FlagO). 
+domains_of([T|Ts],Vars,_FlagI, [dom(T)|TwD],FlagO) :-
+  domains_of(Ts,Vars,yes, TwD,FlagO).  
 
 %
 tjm_aba_asms_enc([], []).

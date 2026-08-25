@@ -65,13 +65,17 @@ xabal(BK,Ep0,En0,Ep,En, Ro) :-
   xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro).
 %
 xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro) :-
+  ( satisfiable(R1) -> true ; ( write('BK unsat! '), nl, fail ) ),
+  %%%
   statistics(runtime,[T1,_]),     % cpu time
   statistics(system_time,[S1,_]), % system time
   statistics(walltime,[W1,_]),    % wall time                     % rules counter
   %%%
-  roLe(R1,Ep0,En0,Ep,En, RL,R2),    % RoLe
-  ( lopt(folding_selection(mgr)) -> ( utl_rules_append(R2,[gf([])],R3), init_mgr(R3,RL, R4) ) ; R2=R4 ),
-  genT(R4,Ep0,En0,Ep,En, Ro),    % GEN
+  roLe(R1,Ep0,En0,Ep,En, _RL,R2),  % RoLe
+  % moved to rote_learning.pl
+  %( lopt(folding_selection(mgr)) -> ( utl_rules_append(R2,[gf([])],R3), init_mgr(R3,RL, R4) ) ; R2=R4 ),
+  R2=R4,
+  genT(R4,Ep0,En0,Ep,En, Ro),     % GEN
   %%%
   statistics(runtime,[T2,_]),     T is T2-T1,   
   statistics(system_time,[S2,_]), S is S2-S1,
@@ -131,7 +135,38 @@ xabal_proc(_,_,_,_,_,_, _) :-
     abalearn_log(info,write('* No solution found! '))
   ; 
     abalearn_log(info,write('* There are no more solutions! '))
-  ). 
+  ).
+
+check_entailment(BK,E,Ps,Ns) :-
+  Ep=[],
+  En=[],
+  check_options,
+  % initialize solution counter
+  retractall(sol_counter(_)),
+  assert(sol_counter(0)),
+  % initialize tokens (for folding)
+  retractall(tokens(_)),
+  assert(tokens(1)),
+  %%%
+  nl, write('Current learning options:'), nl,
+  listing(lopt/1),
+  %
+  read_bk(BK, Rs),
+  check_aba(Rs,Ep,En),
+  rules_aba_utl(Rs, Ro), % partition the list of rules Rs into two sublists ABA and UTL
+                         % ABA = rules of the ABA framework
+                         % UTL = utility rules (e.g., assumption, contrary)
+  check_entailment_aux(Ro,E,[],[], Ps,Ns),
+  !.
+%
+check_entailment_aux(_,[],Ps,Ns, Ps,Ns).
+check_entailment_aux(R,[E|Es],PsI,NsI, PsO,NsO) :-
+  ( entails(R,[],[],[E],[]) ->
+    ( Ps1=[E|PsI], Ns1=NsI ) 
+  ;
+    ( Ps1=PsI, Ns1=[E|NsI] )
+  ),
+  check_entailment_aux(R,Es,Ps1,Ns1, PsO,NsO). 
 
 %
 :- dynamic lopt/1.
@@ -201,7 +236,9 @@ set_lopt(semantics(S)) :-
   !,
   retractall(lopt(semantics(_))),
   assert(lopt(semantics(S))),
-  atom_concat('lib/pi_',S,S1), atom_concat(S1,'.asp',F),
+  working_directory(WD,WD),
+  atom_concat(WD,'lib/pi_',WD1),
+  atom_concat(WD1,S,S1), atom_concat(S1,'.asp',F),
   setenv('ASP_INCL',F),
   set_semantics_enc.
 set_lopt(clingo_time_limit(CTO)) :-
