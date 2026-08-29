@@ -1,6 +1,8 @@
 :- use_module(library(random)).
 :- use_module(library(gensym)).
 
+:- consult('../../xabal.pl').
+
 % Pred: a nonempty list of length P of predicate symbols
 % Asm: a nonempty list of assumptions not in Pred
 % Contr: a list of pairs (assumption,contrary)
@@ -105,15 +107,7 @@ gen_bd(Ps,[A|B],X,L) :-
     A=..[P,X],
     gen_bd(Rest,B,X,L1).    
 
-% write ABAF on file
-export_abaf(P,C,A,F,BdL,R) :-
-    generate_abaf(P,C,A,F,BdL,R,_Pred,_Univ,Facts,Rules,_Asm,Contr),
-    abalp_filename('gen_abalpb.bk.',_BaseFileName,ABAFFileName),
-    tell(ABAFFileName),
-    print_abaf(Facts,Rules,Contr),
-    told,
-    write('ABA Framework written on file abaf.aba'), nl.
-
+% print ABAF
 print_abaf(Facts,Rules,Contr) :-
     print_rules(Facts),
     print_rules(Rules),
@@ -138,15 +132,18 @@ print_contr([(At,CAt)|Cs]) :-
     write(contrary(At,CAt) :- assumption(At) ), write('.'), nl,
     print_contr(Cs).
 
-% Fixing some parameters
-export_abaf(Size) :-
-    R is div(Size,4),
-    F is Size-R,
-    P is div(R,2)+1,
-    C is Size*2,
-    A is div(R,3)+1,
-    BdL=2,
-    export_abaf(P,C,A,F,BdL,R).
+% print Examples (Pos e Neg)
+print_ex(Pex,Nex) :-
+    nl, 
+    write('% '), write(pos_ex(Pex)), write('.'), nl,
+    write('% '), write(neg_ex(Nex)), write('.'), nl.
+
+% print X-ABALearn goal
+print_goal(BaseFileName,Pex,Nex) :-
+    atom_concat(BaseFileName,'.pl',FileName),
+    tell(FileName),     
+    write(':- xabal(\''), write(BaseFileName), write('\','), write(Pex), write(','), write(Nex), write(').'),
+    told.
 
 % generate examples:
 % Ep #positive examples
@@ -166,6 +163,46 @@ generate_ex(Ep,En,L,Pred,Facts,Pex,Nex) :-
     rnd_select_ex(Ep,Cex,Pex,Rest),      % rnd select pos. ex.
     not_in_facts(Rest,Facts,CNex),       % exclude candidate examples appearing as facts in BK
     rnd_select_ex(En,CNex,Nex,_).        % rnd select neg. ex.
+%
+generate_ex(E,L,Pred,Facts,Ex) :-
+    rnd_learnable(L,Pred,T),             % rnd select learnable predicates in Pred
+    constants_in(Facts,Const),           % compute constants occurring in Facts
+    sort(Const,Univ),                    % avoid duplicates
+    candidate_ex(T,Univ,Cex),
+    rnd_select_ex(E,Cex,Ex,_Rest).  
+
+arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
+    atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
+    read_bk(ABAFPREDBaseFileName, In),
+    rules_aba_utl(In, ABAF), 
+    findall(Name/1,member(Name,Pred),PredwArity),
+    extension(ABAF,PredwArity, S),
+    arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
+arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
+    atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
+    read_bk(ABAFPREDBaseFileName, In),
+    rules_aba_utl(In, ABAF), 
+    findall(Name/1,member(Name,Pred),PredwArity),
+    extensions(ABAF,PredwArity, S),
+    arclaims_from_extensions_aux(S,PredwArity,Univ, Ep,En).
+% S is a list
+arclaims_from_extension_aux(_S,[],_Univ, [],[]).
+arclaims_from_extension_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
+    findall(Pos,(member(Pos,S),functor(Pos,P,N)),Ep),
+    findall(Neg,(member(C,Univ),Neg=..[P,C],\+member(Neg,Ep)),En),
+    arclaims_from_extension_aux(S,Preds,Univ, Eps,Ens).
+% S is a list of list
+arclaims_from_extensions_aux(_S,[],_Univ, [],[]).
+arclaims_from_extensions_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
+    findall(Pos,(functor(Pos,P,N),maplist(member(Pos),S)),Ep),
+    findall(Neg,(member(C,Univ),Neg=..[P,C],maplist(nonmember(Neg),S)),En),
+    arclaims_from_extensions_aux(S,Preds,Univ, Eps,Ens).    
+
+nonmember(E,L) :-
+    memberchk(E,L), % assuming E ground
+    !,
+    fail.
+nonmember(_,_).    
 
 rnd_learnable(0,_Pred,[]). 
 rnd_learnable(L,Pred,[P|T]) :- 
@@ -173,6 +210,22 @@ rnd_learnable(L,Pred,[P|T]) :-
     L1 is L-1,
     random_select(P,Pred,Pred1),
     rnd_learnable(L1,Pred1,T).
+
+n_random_select(0,_Pred,[]). 
+n_random_select(L,Pred,[P|T]) :- 
+    L>=1,
+    L1 is L-1,
+    random_select(P,Pred,Pred1),
+    n_random_select(L1,Pred1,T).
+%
+n_random_select(0,Pred,[],Pred). 
+n_random_select(L,Pred,[P|T],Rest) :- 
+    L>=1,
+    L1 is L-1,
+    random_select(P,Pred,Pred1),
+    n_random_select(L1,Pred1,T,Rest).
+
+
     
 constants_in([],[]).
 constants_in([(_H,B)|Rules],U) :- 
@@ -204,6 +257,23 @@ not_in_facts([Ex|Exs],Facts,[Ex|CNex]) :-
 not_in_facts([_Ex|Exs],Facts,CNex) :- 
     not_in_facts(Exs,Facts,CNex).
 
+rnd_select_lst(0,_,Rest,Rest).
+rnd_select_lst(N,L,[E|Ex],Rest) :-
+    N>=1,
+    N1 is N-1,
+    random_select(E,L,L1),
+    rnd_select_lst(N1,L1,Ex,Rest).
+
+rem_pred_rules([],_,[]).
+rem_pred_rules([R|Rs],ExPred,Rs1) :-
+    R=(H,_),
+    functor(H,F,1),
+    member(F/1,ExPred), 
+    !,
+    rem_pred_rules(Rs,ExPred,Rs1).
+rem_pred_rules([R|Rs],ExPred,[R|Rs1]) :-
+    rem_pred_rules(Rs,ExPred,Rs1).
+
 % generate_abalpb(P,C,A,F,R,Ep,En,L,Facts,Rules,Asm,Contr,Pex,Nex)
 % P # unary predicates
 % C # constants
@@ -221,36 +291,6 @@ generate_abalpb(P,C,A,F,BdL,R,Ep,En,L,Facts,Rules,Asm,Contr,Pex,Nex) :-
     generate_abaf(P,C,A,F,BdL,R,Pred,_Univ,Facts,Rules,Asm,Contr),
     generate_ex(Ep,En,L,Pred,Facts,Pex,Nex).
 
-% Write ABA Learning problem on file
-export_abalpb(P,C,A,F,R,BdL,Ep,En,L) :-
-    generate_abalpb(P,C,A,F,R,BdL,Ep,En,L,Facts,Rules,_Asm,Contr,Pex,Nex),
-    abalp_filename('abalpb.bk.',BaseFileName,ABAFFileName),
-    tell(ABAFFileName),
-    print_abaf(Facts,Rules,Contr),
-    print_ex(Pex,Nex),
-    told,
-    print_goal(BaseFileName,Pex,Nex),
-    write('ABA Learning problem written on file '), write(ABAFFileName), nl.
-
-print_ex(Pex,Nex) :-
-    nl, 
-    write('% '), write(pos_ex(Pex)), write('.'), nl,
-    write('% '), write(neg_ex(Nex)), write('.'), nl.
-
-print_goal(BaseFileName,Pex,Nex) :-
-    prolog_load_context(directory,D), 
-    atom_concat(D,'/abalp/',D1),
-    atom_concat(BaseFileName,'.pl',FileName),
-    atom_concat(D1,FileName,AbsFileName),
-    atom_concat(D1,BaseFileName,AbsABAFFileName),
-    tell(AbsFileName),     
-    write(':- xabal(\''), write(AbsABAFFileName), write('\','), write(Pex), write(','), write(Nex), write(').'),
-    told.
-
-% generate ABA Learning problems where learnable predicates do not occur in ABAF
-generate_disjoint_abalpb(P,C,A,F,BdL,R,Ep,En,L,Facts,Rules,Asm,Contr,Pex,Nex) :-
-    generate_abaf(P,C,A,F,BdL,R,_Pred,_Univ,Facts,Rules,Asm,Contr),
-    generate_disjoint_ex(Ep,En,L,_T,Facts,Pex,Nex).
 
 % Examples are generated from constants in Facts, learnable predicates do not occur in BK
 generate_disjoint_ex(Ep,En,L,T,Facts,Pex,Nex) :-    
@@ -268,39 +308,39 @@ gen_disjoint_pred(N,[P|Ps]) :-
    gensym(t,P),
    gen_disjoint_pred(N1,Ps).
 
-% Write disjoint ABA Learning problem on file
-export_disjoint_abalpb(P,C,A,F,BdL,R,Ep,En,L) :-
-    generate_disjoint_abalpb(P,C,A,F,BdL,R,Ep,En,L,Facts,Rules,_Asm,Contr,Pex,Nex),
-    ( R == 0 ->
-      abalp_filename('tab_abalpb.bk.',BaseFileName,ABAFFileName)
-    ;
-      abalp_filename('dis_abalpb.bk.',BaseFileName,ABAFFileName)
-    ),
+% Fixing some parameters:
+% general ABAF learning problem
+export_abalpb(BKsize,Ep,En) :-
+    R is div(BKsize,3),
+    hparams(BKsize,R, P,C,A,F,BdL,L),
+    generate_abaf(P,C,A,F,BdL,R,Pred,_Univ,Facts,Rules,_Asm,Contr),
+    generate_ex(Ep,En,L,Pred,Facts,Pex,Nex),
+    %%%
+    abalp_filename('abalpb.bk.',BaseFileName,ABAFFileName),
     tell(ABAFFileName),
     print_abaf(Facts,Rules,Contr),
     print_ex(Pex,Nex),
     told,
     print_goal(BaseFileName,Pex,Nex),
     write('ABA Learning problem written on file '), write(ABAFFileName), nl.
-
-% Write disjoint tabular ABA Learning problem on file
-export_tabular_abalpb(P,C,F,Ep,En,L) :-
-    export_disjoint_abalpb(P,C,0,F,0,0,Ep,En,L).
-
-% Fixing some parameters:
-% general ABAF learning problem
-export_abalpb(BKsize,Ep,En) :-
-    R is div(BKsize,3),
-    hparams(BKsize,R, P,C,A,F,BdL,L),
-    export_abalpb(P,C,A,F,BdL,R,Ep,En,L).
 export_abalpb(BKsize,E) :-
     random_ex_size(E,Ep,En),
     export_abalpb(BKsize,Ep,En).    
 % learnable predicates do not occur in the BK
 export_disjoint_abalpb(BKsize,Ep,En) :-
     R is div(BKsize,3), 
-    hparams(BKsize,R, P,C,A,F,BdL,L),     
-    export_disjoint_abalpb(P,C,A,F,BdL,R,Ep,En,L).
+    hparams(BKsize,R, P,C,A,F,BdL,L),
+    % generate ABA Learning problems where learnable predicates do not occur in ABAF 
+    generate_abaf(P,C,A,F,BdL,R,_Pred,_Univ,Facts,Rules,_Asm,Contr),
+    generate_disjoint_ex(Ep,En,L,_T,Facts,Pex,Nex),
+    %%%
+    abalp_filename('dis_abalpb.bk.',BaseFileName,ABAFFileName),
+    tell(ABAFFileName),
+    print_abaf(Facts,Rules,Contr),
+    print_ex(Pex,Nex),
+    told,
+    print_goal(BaseFileName,Pex,Nex),
+    write('ABA Learning problem written on file '), write(ABAFFileName), nl.    
 export_disjoint_abalpb(BKsize,E) :-
     random_ex_size(E,Ep,En),
     export_disjoint_abalpb(BKsize,Ep,En).   
@@ -308,7 +348,16 @@ export_disjoint_abalpb(BKsize,E) :-
 export_tabular_abalpb(BKsize,Ep,En) :-
     R = 0,  
     hparams(BKsize,R, P,C,_A,F,_BdL,L),
-    export_tabular_abalpb(P,C,F,Ep,En,L).
+    generate_abaf(P,C,0,F,0,0,_Pred,_Univ,Facts,Rules,_Asm,Contr),
+    generate_disjoint_ex(Ep,En,L,_T,Facts,Pex,Nex),
+    %%%
+    abalp_filename('tab_abalpb.bk.',BaseFileName,ABAFFileName),
+    tell(ABAFFileName),
+    print_abaf(Facts,Rules,Contr),
+    print_ex(Pex,Nex),
+    told,
+    print_goal(BaseFileName,Pex,Nex),
+    write('ABA Learning problem written on file '), write(ABAFFileName), nl.  
 export_tabular_abalpb(BKsize,E) :-
     random_ex_size(E,Ep,En),
     export_tabular_abalpb(BKsize,Ep,En).    
@@ -331,13 +380,9 @@ random_ex_size(E,Ep,En) :-
     En is E - Ep.
 
 abalp_filename(BaseFileNameIn, BaseFileNameOut,ABAFFileName) :-
-    prolog_load_context(directory,D), atom_concat(D,'/abalp/',D1), 
     gensym(BaseFileNameIn,BaseFileNameOut),
-    atom_concat(BaseFileNameOut,'.aba',ABAFBaseFileName),
-    atom_concat(D1,ABAFBaseFileName,ABAFFileName).
+    atom_concat(BaseFileNameOut,'.aba',ABAFFileName).
 
-% :-  export_abaf(5,10,3,14,2,4).
-% :-  export_abaf(10).
 % :-  export_abalpb(10,2,3).
 % :-  export_disjoint_abalpb(10,2,2).
 % :-  export_tabular_abalpb(10,3,1).
@@ -349,3 +394,95 @@ try_aux(N,Max,_) :-
 try_aux(N,Max,G) :-
   N < Max,
   ( G -> true ; ( M is N+1, try_aux(M,Max,G) ) ).
+
+
+export_predictor_abalpb(M,BKsize,E) :-
+    ( BKsize>=3, E>=5 ),
+    R is div(BKsize,3),
+    hparams(BKsize,R, P,C,A,F,BdL,_L), % L = learnable predicates
+    gensym('abaf.',BaseFileName),
+    generate_abaf(P,C,A,F,BdL,R,Pred,Univ,Facts,Rules,_Asm,Contr),
+    %%%
+    atom_concat(BaseFileName,'.pred.aba',ABAFPREDFileName),
+    tell(ABAFPREDFileName),
+    print_abaf(Facts,Rules,Contr),
+    told,
+    write('ABA Learning problem written on file '), write(ABAFPREDFileName), nl,
+    %%%
+    arclaims_from_extensions(M,BaseFileName,Pred,Univ, Acc,Rej),
+    select_learnable_pred(Rules,LearnPred),
+    generate_ex_from_claims(Acc,Rej,LearnPred, Ep,En),
+    !,
+    write('predictor: '), nl,
+    write('  BK size: '), write(BKsize), nl, 
+    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,
+    write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
+    write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
+    write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,    
+    write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
+    write('  Pos.Ex.: '), length(Ep,EpL), write(EpL), nl,
+    write('  Neg.Ex.: '), length(En,EnL), write(EnL), nl,    
+    %%% ABALPB - remove half of the rules
+    length(Rules,RulesLength),
+    H is div(RulesLength,2),
+    rnd_select_lst(H,Rules,SRules,_),
+    atom_concat(BaseFileName,'.genlp.aba',GENLPFileName),
+    tell(GENLPFileName),
+    print_abaf(Facts,SRules,Contr),
+    told,
+    write('general ABALP: '), nl,
+    write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl, 
+    %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
+    rem_pred_rules(Rules,LearnPred,SRules1),
+    atom_concat(BaseFileName,'.dislp.aba',DISLPFileName),
+    tell(DISLPFileName),
+    print_abaf(Facts,SRules1,Contr),
+    told,
+    write('disjoint ABALP: '), nl,
+    write('  Rules:   '), length(SRules1,SRules1L), write(SRules1L), nl, 
+    %%% TAB_ABALPB - remove all rules
+    atom_concat(BaseFileName,'.tablp.aba',TABLPFileName),
+    tell(TABLPFileName),    
+    print_abaf(Facts,[],[]),
+    told,
+    random_five_fold(Ep, EpRP),
+    random_five_fold(En, EnRP),
+    write_5fcv(BaseFileName,EpRP,EnRP).
+
+%
+select_learnable_pred(Rules,LPreds) :-
+    findall(P/1,(member((H,_),Rules),functor(H,P,1)),Preds),
+    sort(Preds,SPreds),
+    length(SPreds,NPreds),
+    TBL is div(NPreds,2),
+    (TBL > 1 -> n_random_select(TBL,SPreds,LPreds) ; n_random_select(1,SPreds,LPreds) ).
+
+%
+generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
+    findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
+    findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
+
+%
+random_five_fold(S, RP) :- 
+  random_five_fold(S,[[],[],[],[],[]], RP).
+%
+random_five_fold([],RP, RP) :- 
+  !.
+random_five_fold(S,[S1,S2,S3,S4,S5], RP) :-
+  random_select(E,S, R),
+  random_five_fold(R,[S2,S3,S4,S5,[E|S1]], RP).
+
+%
+write_5fcv(BaseFileName,EpRP,EnRP) :-
+    atom_concat(BaseFileName,'.5fCV.pl',FileName),
+    tell(FileName),
+    write_5fcv_aux(1,EpRP,EnRP),
+    told.
+%
+write_5fcv_aux(6,_,_).
+write_5fcv_aux(I,EpRP,EnRP) :-
+    nth1(I,EpRP,SEp,REp), flatten(REp,FREp), 
+    nth1(I,EnRP,SEn,REn), flatten(REn,FREn),
+    write(fold(I,SEp,SEn,FREp,FREn)), write('.'), nl,
+    I1 is I+1,
+    write_5fcv_aux(I1,EpRP,EnRP).

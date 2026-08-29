@@ -203,8 +203,8 @@ extension(ABAF,Ps, E) :-
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore -n1 > cc.clingo 2>> clingo.stderr.log',_),
   shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
   shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE),
+  !,
   EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
-  !, 
   see('cc.pl'),
   % read 'cc.clingo' - read first extension
   read_all([E]),
@@ -227,8 +227,8 @@ extensions(ABAF,Ps, Es) :-
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore -n0 > cc.clingo 2>> clingo.stderr.log',_),
   shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
   shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE),
+  !,
   EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
-  !, 
   see('cc.pl'),
   % read 'cc.clingo' (list of extensions)
   read_all(Es),
