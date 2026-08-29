@@ -378,10 +378,7 @@ read_bk(FileName, Rules) :-
   % initialize rule identifier
   retractall(rid(_)),
   assert(rid(1)),
-  atom_concat(FileName,'.aba',File),
-  catch( open(File, read, Stream, [alias(bk)]), Catcher,
-         (write(open(File, read, Stream)), write(': '), write(Catcher), nl, fail)),
-  read_bk_aux(Stream, Rules),
+  ( open_bkfile(FileName, Stream) -> read_bk_aux(Stream, Rules) ; fail ),
   rid(ID),
   retractall(rlid(_)),  
   assert(rlid(ID)), % ID of the first learnt rule
@@ -390,6 +387,21 @@ read_bk(FileName, Rules) :-
   BKSize is ID-1, 
   assert(bksize(BKSize)),
   preds_in_BK(Rules).
+%
+open_bkfile(FileName, Stream) :-
+  FileName = File,
+  catch( open(File, read, Stream),
+    error(existence_error(source_sink,_),_),
+    ( write('WARNING: '), write(File), write(' not found -- trying adding .aba extension'), nl, fail ) 
+  ),
+  !.
+open_bkfile(FileName, Stream) :-
+  atom_concat(FileName,'.aba',File),
+  catch( open(File, read, Stream),
+    error(existence_error(source_sink,_),_),
+    ( write('ERROR: neither '), write(FileName), write(' nor '), write(File), write(' was found!'), nl, fail ) 
+  ).
+
 % read_bk/2 utility predicate: 
 % read all terms from Stream and
 % generate the corresponding rule/3 terms

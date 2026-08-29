@@ -382,22 +382,36 @@ test_abaf(ABAF_file,Ep0,En0,Ep,En) :-
   tell(TestFile),
   test_abaf_aux(ABAF1,Ep0,En0,Ep,En),
   told.
-%
+
 test_abaf_aux(_ABAF,_,_,[],[]).      
-test_abaf_aux(ABAF,Ep0,En0,[pos(E,F)|Ep],En) :-
+test_abaf_aux(ABAF,Ep0,En0,[E|Ep],En) :-
   write(E), write(','), write(pos), write(','),
-  ex_rules(ABAF,F, ABAFwER),
-  test_entails(ABAFwER,Ep0,En0,E,Res),
+  test_entails(ABAF,Ep0,En0,E,Res),
   write(Res),
   nl,  
   test_abaf_aux(ABAF,Ep0,En0,Ep,En).
-test_abaf_aux(ABAF,Ep0,En0,[],[neg(E,F)|En]) :-
+test_abaf_aux(ABAF,Ep0,En0,[],[E|En]) :-
   write(E), write(','), write(neg), write(','),
-  ex_rules(ABAF,F, ABAFwER),
-  test_entails(ABAFwER,Ep0,En0,E,Res),
+  test_entails(ABAF,Ep0,En0,E,Res),
   write(Res),
   nl,  
   test_abaf_aux(ABAF,Ep0,En0,[],En).
+% version that adds the domain rule for the constant occurring in the example 
+% test_abaf_aux(_ABAF,_,_,[],[]).      
+% test_abaf_aux(ABAF,Ep0,En0,[pos(E,F)|Ep],En) :-
+%   write(E), write(','), write(pos), write(','),
+%   ex_rules(ABAF,F, ABAFwER),
+%   test_entails(ABAFwER,Ep0,En0,E,Res),
+%   write(Res),
+%   nl,  
+%   test_abaf_aux(ABAF,Ep0,En0,Ep,En).
+% test_abaf_aux(ABAF,Ep0,En0,[],[neg(E,F)|En]) :-
+%   write(E), write(','), write(neg), write(','),
+%   ex_rules(ABAF,F, ABAFwER),
+%   test_entails(ABAFwER,Ep0,En0,E,Res),
+%   write(Res),
+%   nl,  
+%   test_abaf_aux(ABAF,Ep0,En0,[],En).
 
 %
 test_entails(ABAF,Ep0,En0,E,Res) :-

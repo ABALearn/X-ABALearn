@@ -120,49 +120,6 @@ ord([H|T],[H|S]) :-
   ord(T,S).
 
 % -----------------------------------------------------------------------------
-% Ri subsumes rule R
-subsumed(Ri,Ep0,En0,Ep,En, _R) :-
-  lopt(learning_mode(brave)),
-  !,
-  rule_hd(R,H), rule_bd(R,B),
-  ic([not H|B],I),
-  utl_rules_append(Ri,[I], Ri1),
-  % asp w/ic for Ep and En
-  asp(Ri1,Ep0,En0,Ep,En,[], Ro),
-  % write rules to file
-  dump_rules(Ro),
-  % invoke clingo to compute the consequences of Rs and write them to cc.clingo
-  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.txt',_EXIT_CODE),
-  shell('cat cc.clingo | grep \'^SATISFIABLE\'  > /dev/null',EXIT_CODE),
-  EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'
-subsumed(Ri,Ep0,En0,Ep,En, R) :-
-  lopt(learning_mode(cautious)),
-  % asp w/ic for Ep and En
-  asp(Ri,Ep0,En0,Ep,En,[], Ro),
-  % write rules to file
-  dump_rules(Ro),
-  % invoke clingo to compute the consequences of Rs and write them to cc.clingo
-  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore --enum-mode=cautious > cc.clingo 2>> clingo.stderr.log',_EXIT_CODE),
-  shell('cat cc.clingo | grep \'^SATISFIABLE\'  > /dev/null',EXIT_CODE),
-  EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
-  shell('echo \'[\' > cc.pl'),
-  shell('cat cc.clingo | grep -A1 \'^Answer:\' | tail -n -1 >> cc.pl'),
-  shell('echo \'].\' >> cc.pl'),
-  see('cc.pl'),
-  % read 'cc.clingo' and assert it into the database
-  read(As),
-  seen,
-  copy_term(R,CpyS), rule_hd(CpyS,H), rule_bd(CpyS,B),
-  unify_eqs(B),
-  !,
-  member(H,As).
-% subsumed (cautious) predicate
-unify_eqs([]).
-unify_eqs([V=C|E]) :-
-  V=C,
-  unify_eqs(E).
-
-% -----------------------------------------------------------------------------
 % R entails all elements in Ep and R does not entail any element of En
 entails(R,Ep0,En0,Ep,En) :-
   lopt(learning_mode(brave)),
@@ -185,7 +142,7 @@ entails(R,Ep0,En0,Ep,En) :-
   shell('cat cc.clingo | grep \'^UNSATISFIABLE\'  > /dev/null',EXIT_CODE),
   EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'  
 
-
+% -----------------------------------------------------------------------------
 % extension/2  
 extension(ABAF, E) :-
   extension(ABAF,[], E).
@@ -234,6 +191,7 @@ extensions(ABAF,Ps, Es) :-
   read_all(Es),
   seen. 
 
+% -----------------------------------------------------------------------------
 % extension/1
 satisfiable(ABAF) :-
   extension(ABAF, _). 
