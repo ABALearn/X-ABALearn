@@ -92,15 +92,16 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro) :-
   write(S), write(','), 
   write(W), write(','), Lt is T+S, write(Lt), nl,
   % output files
-  atom_concat(BK,'.sol.aba',Out),
+  ( atom_concat(BKBaseName,'.aba',BK) -> true ; BKBaseName=BK  ),
+  atom_concat(BKBaseName,'.sol.aba',Out),
   retract(sol_counter(N)), M is N+1, assert(sol_counter(M)),
   nl, write('Writing solution no. '), write(M), write(' to '), write(Out), nl, nl,
   write_sol(Ro,Out),
-  atom_concat(BK,'.sol.asp',OutASP),
+  atom_concat(BKBaseName,'.sol.asp',OutASP),
   asp(Ro,[],[],[],[],[], RoASP),
   dump_rules(RoASP,OutASP),
   ( lopt(check_ic) -> 
-    ( asp(Ro,Ep0,En0,Ep,En,[], RoASPwIC), atom_concat(BK,'.sol_chk.asp',OutASPwIC),  dump_rules(RoASPwIC,OutASPwIC) ) 
+    ( asp(Ro,Ep0,En0,Ep,En,[], RoASPwIC), atom_concat(BKBaseName,'.sol_chk.asp',OutASPwIC),  dump_rules(RoASPwIC,OutASPwIC) ) 
   ;
     true
   ),
@@ -378,7 +379,8 @@ test_abaf(ABAF_file,Ep,En) :-
 test_abaf(ABAF_file,Ep0,En0,Ep,En) :-
   read_bk(ABAF_file, ABAF),
   rules_aba_utl(ABAF, ABAF1),
-  atom_concat(ABAF_file,'.test.csv',TestFile),
+  ( atom_concat(BKBaseName,'.aba',ABAF_file) -> true ; BKBaseName=ABAF_file  ),
+  atom_concat(BKBaseName,'.test.csv',TestFile),
   tell(TestFile),
   test_abaf_aux(ABAF1,Ep0,En0,Ep,En),
   told.

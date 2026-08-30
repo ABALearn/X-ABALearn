@@ -174,6 +174,7 @@ generate_ex(E,L,Pred,Facts,Ex) :-
 arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
     atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
     read_bk(ABAFPREDBaseFileName, In),
+    !,
     rules_aba_utl(In, ABAF), 
     findall(Name/1,member(Name,Pred),PredwArity),
     extension(ABAF,PredwArity, S),
@@ -181,6 +182,7 @@ arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
 arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
     atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
     read_bk(ABAFPREDBaseFileName, In),
+    !,
     rules_aba_utl(In, ABAF), 
     findall(Name/1,member(Name,Pred),PredwArity),
     extensions(ABAF,PredwArity, S),
@@ -447,7 +449,13 @@ export_predictor_abalpb(M,BKsize,E) :-
     told,
     random_five_fold(Ep, EpRP),
     random_five_fold(En, EnRP),
-    write_5fcv(BaseFileName,EpRP,EnRP).
+    atom_concat(BaseFileName,'.5fCV.pl',FileName),
+    tell(FileName),
+    write('bk(\''), write(GENLPFileName), write('\').'), nl,
+    write('bk(\''), write(DISLPFileName), write('\').'), nl,
+    write('bk(\''), write(TABLPFileName), write('\').'), nl,
+    write_5fcv(1,EpRP,EnRP),
+    told.
 
 %
 select_learnable_pred(Rules,LPreds) :-
@@ -473,16 +481,10 @@ random_five_fold(S,[S1,S2,S3,S4,S5], RP) :-
   random_five_fold(R,[S2,S3,S4,S5,[E|S1]], RP).
 
 %
-write_5fcv(BaseFileName,EpRP,EnRP) :-
-    atom_concat(BaseFileName,'.5fCV.pl',FileName),
-    tell(FileName),
-    write_5fcv_aux(1,EpRP,EnRP),
-    told.
-%
-write_5fcv_aux(6,_,_).
-write_5fcv_aux(I,EpRP,EnRP) :-
+write_5fcv(6,_,_).
+write_5fcv(I,EpRP,EnRP) :-
     nth1(I,EpRP,SEp,REp), flatten(REp,FREp), 
     nth1(I,EnRP,SEn,REn), flatten(REn,FREn),
     write(fold(I,SEp,SEn,FREp,FREn)), write('.'), nl,
     I1 is I+1,
-    write_5fcv_aux(I1,EpRP,EnRP).
+    write_5fcv(I1,EpRP,EnRP).

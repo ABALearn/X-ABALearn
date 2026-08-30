@@ -123,23 +123,23 @@ ord([H|T],[H|S]) :-
 % R entails all elements in Ep and R does not entail any element of En
 entails(R,Ep0,En0,Ep,En) :-
   lopt(learning_mode(brave)),
-  !,
   asp(R,Ep0,En0,Ep,En,[], A),
   % write rules to file
   dump_rules(A),
   % invoke clingo to compute the consequences of Rs and write them to cc.clingo
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.txt',_EXIT_CODE),
   shell('cat cc.clingo | grep \'^SATISFIABLE\'  > /dev/null',EXIT_CODE),
+  !,
   EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'
 entails(R,Ep0,En0,Ep,En) :-
   lopt(learning_mode(cautious)),
-  !,
   asp(R,Ep0,En0,Ep,En,[], A),
   % write rules to file
   dump_rules(A),
   % invoke clingo to compute the consequences of Rs and write them to cc.clingo
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=ignore > cc.clingo 2>> clingo.stderr.txt',_EXIT_CODE),
   shell('cat cc.clingo | grep \'^UNSATISFIABLE\'  > /dev/null',EXIT_CODE),
+  !,
   EXIT_CODE == 0. % exit status of grep: 0 stands for 'One or more lines were selected.'  
 
 % -----------------------------------------------------------------------------
