@@ -114,7 +114,7 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro) :-
   % name
   file_base_name(BK,BKName), write(Stream,BKName), write(Stream,','),
   % semantic (if any)
-  ( lopt(semantics(Sem)) -> write(Stream,Sem) ; write(Stream,'\'\\N\'') ), write(Stream,','), 
+  ( lopt(semantics(Sem)) -> write(Stream,Sem) ; write(Stream,'stb-native') ), write(Stream,','), 
   % BK size
   write(Stream,BKSize), write(Stream,','),
   % pos

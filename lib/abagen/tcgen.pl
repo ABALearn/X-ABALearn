@@ -171,16 +171,14 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     candidate_ex(T,Univ,Cex),
     rnd_select_ex(E,Cex,Ex,_Rest).  
 
-arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
-    atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
+arclaims_from_extensions(x,ABAFPREDBaseFileName,Pred,Univ, Ep,En) :-
     read_bk(ABAFPREDBaseFileName, In),
     !,
     rules_aba_utl(In, ABAF), 
     findall(Name/1,member(Name,Pred),PredwArity),
     extension(ABAF,PredwArity, S),
     arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
-arclaims_from_extensions(x,BaseFileName,Pred,Univ, Ep,En) :-
-    atom_concat(BaseFileName,'.pred',ABAFPREDBaseFileName),
+arclaims_from_extensions(x,ABAFPREDBaseFileName,Pred,Univ, Ep,En) :-
     read_bk(ABAFPREDBaseFileName, In),
     !,
     rules_aba_utl(In, ABAF), 
@@ -411,7 +409,7 @@ export_predictor_abalpb(M,BKsize,E) :-
     told,
     write('ABA Learning problem written on file '), write(ABAFPREDFileName), nl,
     %%%
-    arclaims_from_extensions(M,BaseFileName,Pred,Univ, Acc,Rej),
+    arclaims_from_extensions(M,ABAFPREDFileName,Pred,Univ, Acc,Rej),
     select_learnable_pred(Rules,LearnPred),
     generate_ex_from_claims(Acc,Rej,LearnPred, Ep,En),
     !,
@@ -488,3 +486,10 @@ write_5fcv(I,EpRP,EnRP) :-
     write(fold(I,SEp,SEn,FREp,FREn)), write('.'), nl,
     I1 is I+1,
     write_5fcv(I1,EpRP,EnRP).
+
+%%%
+tcgen(M,BKsize,E) :-
+  try(10,export_predictor_abalpb(M,BKsize,E)),
+  !.
+tcgen(M,BKsize,E) :-
+   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 10 times!'), nl.      
