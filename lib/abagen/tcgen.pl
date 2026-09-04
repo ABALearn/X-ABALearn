@@ -169,22 +169,26 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     constants_in(Facts,Const),           % compute constants occurring in Facts
     sort(Const,Univ),                    % avoid duplicates
     candidate_ex(T,Univ,Cex),
-    rnd_select_ex(E,Cex,Ex,_Rest).  
+    rnd_select_ex(E,Cex,Ex,_Rest).
 
-arclaims_from_extensions(x,ABAFPREDBaseFileName,Pred,Univ, Ep,En) :-
+arclaims_from_extensions(M,ABAFPREDBaseFileName,PredwArity,Univ,E, Ep,SEp,En,SEn) :-
     read_bk(ABAFPREDBaseFileName, In),
+    rules_aba_utl(In, ABAF),
     !,
-    rules_aba_utl(In, ABAF), 
-    findall(Name/1,member(Name,Pred),PredwArity),
+    arclaims_from_extensions(M,ABAF,PredwArity,Univ, PEp,PEn),
+    generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En),
+    H is div(E,2),
+    n_random_select(H,Ep,SEp),
+    n_random_select(H,En,SEn).
+
+%
+arclaims_from_extensions(x,ABAF,PredwArity,Univ, Ep,En) :-
     extension(ABAF,PredwArity, S),
     arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
-arclaims_from_extensions(x,ABAFPREDBaseFileName,Pred,Univ, Ep,En) :-
-    read_bk(ABAFPREDBaseFileName, In),
-    !,
-    rules_aba_utl(In, ABAF), 
-    findall(Name/1,member(Name,Pred),PredwArity),
+arclaims_from_extensions(a,ABAF,PredwArity,Univ, Ep,En) :-
     extensions(ABAF,PredwArity, S),
     arclaims_from_extensions_aux(S,PredwArity,Univ, Ep,En).
+    
 % S is a list
 arclaims_from_extension_aux(_S,[],_Univ, [],[]).
 arclaims_from_extension_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
@@ -202,7 +206,12 @@ nonmember(E,L) :-
     memberchk(E,L), % assuming E ground
     !,
     fail.
-nonmember(_,_).    
+nonmember(_,_).
+
+generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
+    findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
+    findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
+
 
 rnd_learnable(0,_Pred,[]). 
 rnd_learnable(L,Pred,[P|T]) :- 
@@ -390,14 +399,14 @@ abalp_filename(BaseFileNameIn, BaseFileNameOut,ABAFFileName) :-
 try(Max,G) :-
   try_aux(1,Max,G).
 try_aux(N,Max,_) :-
-  N = Max, !.
+  N >= Max, !.
 try_aux(N,Max,G) :-
-  N < Max,
+  N =< Max,
   ( G -> true ; ( M is N+1, try_aux(M,Max,G) ) ).
 
 
 export_predictor_abalpb(M,BKsize,E) :-
-    ( BKsize>=3, E>=5 ),
+    ( BKsize>=3, E>=10 ),
     R is div(BKsize,3),
     hparams(BKsize,R, P,C,A,F,BdL,_L), % L = learnable predicates
     gensym('abaf.',BaseFileName),
@@ -409,10 +418,17 @@ export_predictor_abalpb(M,BKsize,E) :-
     told,
     write('ABA Learning problem written on file '), write(ABAFPREDFileName), nl,
     %%%
-    arclaims_from_extensions(M,ABAFPREDFileName,Pred,Univ, Acc,Rej),
     select_learnable_pred(Rules,LearnPred),
-    generate_ex_from_claims(Acc,Rej,LearnPred, Ep,En),
+    % Examples are generated from extensions
+    % Hence, constants occurring in examples occur in facts as well
+    % LearnPred is a subset of the predicates of Rules
+    ( arclaims_from_extensions(M,ABAFPREDFileName,LearnPred,Univ,E, Ep,SEp,En,SEn) -> 
+      true 
+    ; 
+      ( delete_file(ABAFPREDFileName), fail ) 
+    ),
     !,
+    delete_file(ABAFPREDFileName),
     write('predictor: '), nl,
     write('  BK size: '), write(BKsize), nl, 
     write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,
@@ -420,8 +436,8 @@ export_predictor_abalpb(M,BKsize,E) :-
     write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
     write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,    
     write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
-    write('  Pos.Ex.: '), length(Ep,EpL), write(EpL), nl,
-    write('  Neg.Ex.: '), length(En,EnL), write(EnL), nl,    
+    write('  Pos.Ex. (Tot.Pos.): '), length(SEp,SEpL), write(SEpL), length(Ep,EpL), write(' ('), write(EpL), write(')'), nl,
+    write('  Neg.Ex. (Tot.Neg.): '), length(SEn,SEnL), write(SEnL), length(En,EnL), write(' ('), write(EnL), write(')'), nl,    
     %%% ABALPB - remove half of the rules
     length(Rules,RulesLength),
     H is div(RulesLength,2),
@@ -435,18 +451,24 @@ export_predictor_abalpb(M,BKsize,E) :-
     %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
     rem_pred_rules(Rules,LearnPred,SRules1),
     atom_concat(BaseFileName,'.dislp.aba',DISLPFileName),
-    tell(DISLPFileName),
-    print_abaf(Facts,SRules1,Contr),
-    told,
-    write('disjoint ABALP: '), nl,
-    write('  Rules:   '), length(SRules1,SRules1L), write(SRules1L), nl, 
+    ( SRules1 == [] ->
+      ( write('WARNING: disjoint ABALP is tabular -- skip '), nl )
+    ;
+      (
+        tell(DISLPFileName),
+        print_abaf(Facts,SRules1,Contr),
+        told,
+        write('disjoint ABALP: '), nl,
+        write('  Rules:   '), length(SRules1,SRules1L), write(SRules1L), nl
+      )
+    ), 
     %%% TAB_ABALPB - remove all rules
     atom_concat(BaseFileName,'.tablp.aba',TABLPFileName),
     tell(TABLPFileName),    
     print_abaf(Facts,[],[]),
     told,
-    random_five_fold(Ep, EpRP),
-    random_five_fold(En, EnRP),
+    random_five_fold(SEp, EpRP),
+    random_five_fold(SEn, EnRP),
     atom_concat(BaseFileName,'.5fCV.pl',FileName),
     tell(FileName),
     write('bk(\''), write(GENLPFileName), write('\').'), nl,
@@ -460,13 +482,10 @@ select_learnable_pred(Rules,LPreds) :-
     findall(P/1,(member((H,_),Rules),functor(H,P,1)),Preds),
     sort(Preds,SPreds),
     length(SPreds,NPreds),
-    TBL is div(NPreds,2),
-    (TBL > 1 -> n_random_select(TBL,SPreds,LPreds) ; n_random_select(1,SPreds,LPreds) ).
+    Nmax is min(NPreds,10),
+    random_between(1,Nmax,TBL),
+    n_random_select(TBL,SPreds,LPreds).
 
-%
-generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
-    findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
-    findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
 
 %
 random_five_fold(S, RP) :- 
@@ -489,7 +508,7 @@ write_5fcv(I,EpRP,EnRP) :-
 
 %%%
 tcgen(M,BKsize,E) :-
-  try(10,export_predictor_abalpb(M,BKsize,E)),
+  try(50,export_predictor_abalpb(M,BKsize,E)),
   !.
 tcgen(M,BKsize,E) :-
    write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 10 times!'), nl.      

@@ -49,7 +49,8 @@ compute_conseq(Rs, Cs) :-
   EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
   !,
   % TODO: assuming one solution
-  shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
+  %shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { last = $0 } END { print "[" last "]." }\' > cc.pl'),
   see('cc.pl'),
   % read 'cc.clingo' and assert it into the database
   read_all(Cs),

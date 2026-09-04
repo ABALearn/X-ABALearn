@@ -16,7 +16,7 @@ learn_and_test_ABAFs([BK|BKs]) :-
 
 %
 learn_and_test(BK) :-
-  learn_and_test_5fCV(BK,6).
+  learn_and_test_5fCV(BK,1).
 
 %
 learn_and_test_5fCV(_,6).
