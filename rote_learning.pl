@@ -14,8 +14,8 @@
 % Rote Learning procedures
 
 % roLe(+Ri,+Ep0,+En0,+Ep,+En, -RL,-Ro)
-roLe(Ri,Ep0,En0,Ep,En, RLRs,Ro) :-
-  learnable_predicates(Ri,Ep, Ls),
+roLe(Ri,Ep0,En0,Ep,En,LPreds, RLRs,Ro) :-
+  ( LPreds==[] -> learnable_predicates(Ri,Ep, Ls) ; Ls=LPreds ),
   % compute the set of sets representing solutions to the learning problem
   rote_lerning_solver(Ri,Ep0,En0,Ep,En,Ls, AsList), % fails if no sol. to learning prob. can be found 
   member(As, AsList), % As is set of atoms whose predicates occur in Ls                 
@@ -39,6 +39,7 @@ e_rote_learn(E, R) :-
 learnable_predicates(Af,Ep, Ls) :-
   findall(P/N, ( member(E,Ep), functor(E,P,N) ), P1), 
   aba_cnts(Af, Cs), aba_asms(Af, As), 
+  % all contraries different from assumptions are learnable
   findall(P/N, ( member(contrary(_,C),Cs), functor(C,P,N) ), CPs),
   findall(P/N, ( member(assumption(A),As), functor(A,P,N) ), APs),
   findall(P/N, ( member(P/N,CPs), \+ member(P/N,APs) ), P2),

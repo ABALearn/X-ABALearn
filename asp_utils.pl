@@ -709,7 +709,8 @@ native_asp_enc(Af,Ep0,En0,Ep,En,[P/N|Ls], ASP) :-
   utl_rules_append(Af,[G,R,directive(minimize,{1,A_P1:A_P1}),directive(show,P_P/N)|GIofEpP], Af1),
   native_asp_enc(Af1,Ep0,En0,Ep,En,Ls, ASP).
 native_asp_enc(Af,Ep0,En0,Ep,En,[_P/_N|Ls], ASP) :-
-  % _P/_N is the predicate of a negative examples only
+  % _P/_N is either the predicate of a negative examples
+  %          or a predicate not occuring among the examples
   native_asp_enc(Af,Ep0,En0,Ep,En,Ls, ASP).    
 
 %

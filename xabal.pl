@@ -38,13 +38,17 @@
 % (Ep0) Ep: (already covered) positive examples
 % (En0) En: (already covered) negative examples
 xabal(BK,Ep,En) :-
-  xabal(BK,[],[],Ep,En, _Ro).
+  xabal(BK,Ep,En,[]).
+xabal(BK,Ep,En,Lp) :-
+  xabal(BK,[],[],Ep,En,Lp, _Ro).
 xabal(BK,Ep0,En0,Ep,En) :-
-  xabal(BK,Ep0,En0,Ep,En, _Ro).  
+  xabal(BK,Ep0,En0,Ep,En,[]).
+xabal(BK,Ep0,En0,Ep,En,Lp) :-
+  xabal(BK,Ep0,En0,Ep,En,Lp, _Ro).  
 
 % xabal(+BK,+Ep,+En, -Ro)
 % Ro: learnt ABA framework
-xabal(BK,Ep0,En0,Ep,En, Ro) :-
+xabal(BK,Ep0,En0,Ep,En,Lp, Ro) :-
   check_options,
   % initialize solution counter
   retractall(sol_counter(_)),
@@ -62,16 +66,16 @@ xabal(BK,Ep0,En0,Ep,En, Ro) :-
                          % ABA = rules of the ABA framework
                          % UTL = utility rules (e.g., assumption, contrary)
   init_new_pred_gen(R1), % initialize generator of new assumption names
-  xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro).
+  xabal_proc(BK,R1,Ep0,En0,Ep,En,Lp, Ro).
 %
-xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro) :-
+xabal_proc(BK,R1,Ep0,En0,Ep,En,Lp, Ro) :-
   ( satisfiable(R1) -> true ; ( write('BK unsat! '), nl, fail ) ),
   %%%
   statistics(runtime,[T1,_]),     % cpu time
   statistics(system_time,[S1,_]), % system time
   statistics(walltime,[W1,_]),    % wall time                     % rules counter
   %%%
-  roLe(R1,Ep0,En0,Ep,En, _RL,R2),  % RoLe
+  roLe(R1,Ep0,En0,Ep,En,Lp, _RL,R2),  % RoLe
   % moved to rote_learning.pl
   %( lopt(folding_selection(mgr)) -> ( utl_rules_append(R2,[gf([])],R3), init_mgr(R3,RL, R4) ) ; R2=R4 ),
   R2=R4,
@@ -129,7 +133,7 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En, Ro) :-
   write(Stream,W),  write(Stream,','),
   write(Stream,Lt), write(Stream,'\n'),
   close(Stream).
-xabal_proc(_,_,_,_,_,_, _) :-
+xabal_proc(_,_,_,_,_,_,_, _) :-
   sol_counter(N),
   nl, 
   ( N == 0 ->

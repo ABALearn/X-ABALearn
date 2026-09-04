@@ -428,7 +428,6 @@ export_predictor_abalpb(M,BKsize,E) :-
       ( delete_file(ABAFPREDFileName), fail ) 
     ),
     !,
-    delete_file(ABAFPREDFileName),
     write('predictor: '), nl,
     write('  BK size: '), write(BKsize), nl, 
     write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,
@@ -474,6 +473,7 @@ export_predictor_abalpb(M,BKsize,E) :-
     write('bk(\''), write(GENLPFileName), write('\').'), nl,
     write('bk(\''), write(DISLPFileName), write('\').'), nl,
     write('bk(\''), write(TABLPFileName), write('\').'), nl,
+    write('lp('), write(LearnPred), write(').'), nl,
     write_5fcv(1,EpRP,EnRP),
     told.
 

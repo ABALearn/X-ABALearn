@@ -23,14 +23,21 @@ learn_and_test_5fCV(_,6).
 learn_and_test_5fCV(BK,I) :-
   I =< 5,
   fold(I,LearningEp,LearningEn,TestingEp,TestingEn),
+  lp(Lp),
   % run X-ABALearn on <LearningEp,LearningEn>
-  xabal(BK,LearningEp,LearningEn),
+  xabal(BK,LearningEp,LearningEn,Lp),
   atom_concat(BaseFileName,'.aba',BK),
   atom_concat(BaseFileName,'.sol.aba',SolName),
-  atomic_list_concat([BaseFileName,'.f',I,'.sol.aba'],NewSolName),
-  rename_file(SolName,NewSolName),
-  % test entailment of <TestingEp,TestingEn>
-  test_abaf(NewSolName,TestingEp,TestingEn),
+  ( exists_file(SolName) ->
+    (
+      atomic_list_concat([BaseFileName,'.f',I,'.sol.aba'],NewSolName),
+      rename_file(SolName,NewSolName),
+      % test entailment of <TestingEp,TestingEn>
+      test_abaf(NewSolName,TestingEp,TestingEn)
+    )
+  ;
+    true
+  ),
   I1 is I+1,
   learn_and_test_5fCV(BK,I1).
 
