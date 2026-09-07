@@ -427,7 +427,6 @@ export_predictor_abalpb(M,BKsize,E) :-
     ; 
       ( delete_file(ABAFPREDFileName), fail ) 
     ),
-    !,
     write('predictor: '), nl,
     write('  BK size: '), write(BKsize), nl, 
     write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,
@@ -445,6 +444,12 @@ export_predictor_abalpb(M,BKsize,E) :-
     tell(GENLPFileName),
     print_abaf(Facts,SRules,Contr),
     told,
+    read_abaf(GENLPFileName, GENLPABAF), 
+    ( satisfiable(GENLPABAF) ->
+      true
+    ;
+      ( delete_file(ABAFPREDFileName), delete_file(GENLPFileName), fail )
+    ),
     write('general ABALP: '), nl,
     write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl, 
     %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
@@ -457,6 +462,12 @@ export_predictor_abalpb(M,BKsize,E) :-
         tell(DISLPFileName),
         print_abaf(Facts,SRules1,Contr),
         told,
+        read_abaf(DISLPFileName, DISLPABAF),
+        ( satisfiable(DISLPABAF) ->
+          true
+        ;
+          ( delete_file(ABAFPREDFileName), delete_file(GENLPFileName), delete_file(DISLPFileName), fail )
+        ),
         write('disjoint ABALP: '), nl,
         write('  Rules:   '), length(SRules1,SRules1L), write(SRules1L), nl
       )
@@ -486,6 +497,10 @@ select_learnable_pred(Rules,LPreds) :-
     random_between(1,Nmax,TBL),
     n_random_select(TBL,SPreds,LPreds).
 
+%
+read_abaf(FileName, ABAF) :-
+    read_bk(FileName, In),
+    rules_aba_utl(In, ABAF).
 
 %
 random_five_fold(S, RP) :- 
