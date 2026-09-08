@@ -74,20 +74,18 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En,Lp, Ro) :-
   statistics(runtime,[T1,_]),     % cpu time
   statistics(system_time,[S1,_]), % system time
   statistics(walltime,[W1,_]),    % wall time                     % rules counter
-  %%%
-  roLe(R1,Ep0,En0,Ep,En,Lp, _RL,R2),  % RoLe
-  % moved to rote_learning.pl
-  %( lopt(folding_selection(mgr)) -> ( utl_rules_append(R2,[gf([])],R3), init_mgr(R3,RL, R4) ) ; R2=R4 ),
-  R2=R4,
-  genT(R4,Ep0,En0,Ep,En, Ro),     % GEN
-  %%%
-  statistics(runtime,[T2,_]),     T is T2-T1,   
-  statistics(system_time,[S2,_]), S is S2-S1,
-  statistics(walltime,[W2,_]),    W is W2-W1,
   nl,
   write('BK size (rules):   '), bksize(BKSize), write(BKSize), nl,
   write('Positive examples: '), length(Ep,EpN), write(EpN), nl,
   write('Negative examples: '), length(En,EnN), write(EnN), nl,
+  write_csv_prologue(BK,EpN,EnN),
+  %%%
+  roLe(R1,Ep0,En0,Ep,En,Lp, _RL,R2),  % RoLe
+  genT(R2,Ep0,En0,Ep,En, Ro),         % GEN
+  %%%
+  statistics(runtime,[T2,_]),     T is T2-T1,   
+  statistics(system_time,[S2,_]), S is S2-S1,
+  statistics(walltime,[W2,_]),    W is W2-W1,
   write('ABA size (rules):  '), 
   aba_rules(Ro,Rules), length(Rules,RulesSize),
   write(RulesSize), nl, 
@@ -95,6 +93,7 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En,Lp, Ro) :-
   write(T), write(','), 
   write(S), write(','), 
   write(W), write(','), Lt is T+S, write(Lt), nl,
+  write_csv_epilogue(RulesSize,T,S,W,Lt),
   % output files
   ( atom_concat(BKBaseName,'.aba',BK) -> true ; BKBaseName=BK  ),
   atom_concat(BKBaseName,'.sol.aba',Out),
@@ -108,31 +107,7 @@ xabal_proc(BK,R1,Ep0,En0,Ep,En,Lp, Ro) :-
     ( asp(Ro,Ep0,En0,Ep,En,[], RoASPwIC), atom_concat(BKBaseName,'.sol_chk.asp',OutASPwIC),  dump_rules(RoASPwIC,OutASPwIC) ) 
   ;
     true
-  ),
-  open('xabal.csv',append,Stream),
-  % timestamp
-  get_time(TimestampTrStarted),
-  stamp_date_time(TimestampTrStarted,DT,'local'),
-  format_time(atom(FDT),'%Y-%m-%d %T',DT,'posix'),
-  write(Stream,FDT), write(Stream,','),
-  % name
-  file_base_name(BK,BKName), write(Stream,BKName), write(Stream,','),
-  % semantic (if any)
-  ( lopt(semantics(Sem)) -> write(Stream,Sem) ; write(Stream,'stb-native') ), write(Stream,','), 
-  % BK size
-  write(Stream,BKSize), write(Stream,','),
-  % pos
-  write(Stream,EpN), write(Stream,','),
-  % neg
-  write(Stream,EnN), write(Stream,','),
-  % Out size
-  write(Stream,RulesSize), write(Stream,','),
-  % time (CPU,Sys,Wall,CPU+Sys)
-  write(Stream,T),  write(Stream,','), 
-  write(Stream,S),  write(Stream,','), 
-  write(Stream,W),  write(Stream,','),
-  write(Stream,Lt), write(Stream,'\n'),
-  close(Stream).
+  ).
 xabal_proc(_,_,_,_,_,_,_, _) :-
   sol_counter(N),
   nl, 
@@ -140,7 +115,45 @@ xabal_proc(_,_,_,_,_,_,_, _) :-
     abalearn_log(info,write('* No solution found! '))
   ; 
     abalearn_log(info,write('* There are no more solutions! '))
-  ).
+  ),
+  open('xabal.csv',append,CSVStream),
+  % Out size
+  write(CSVStream,'noSol,'),
+  % time (CPU,Sys,Wall,CPU+Sys)
+  write(CSVStream,'\'\\N\',\'\\N\',\'\\N\',\'\\N\'\n'), 
+  close(CSVStream).
+
+write_csv_prologue(BK,EpN,EnN) :-
+  open('xabal.csv',append,CSVStream),
+  % timestamp
+  get_time(TimestampTrStarted),
+  stamp_date_time(TimestampTrStarted,DT,'local'),
+  format_time(atom(FDT),'%Y-%m-%d %T',DT,'posix'),
+  write(CSVStream,FDT), write(CSVStream,','),
+  % name
+  file_base_name(BK,BKName), write(CSVStream,BKName), write(CSVStream,','),
+  % semantic (if any)
+  ( lopt(semantics(Sem)) -> write(CSVStream,Sem) ; write(CSVStream,'stb-native') ), write(CSVStream,','), 
+  % BK size
+  bksize(BKSize), 
+  write(CSVStream,BKSize), write(CSVStream,','),
+  % pos
+  write(CSVStream,EpN), write(CSVStream,','),
+  % neg
+  write(CSVStream,EnN), write(CSVStream,','),
+  close(CSVStream).  
+%
+write_csv_epilogue(RulesSize,T,S,W,Lt) :-
+  open('xabal.csv',append,CSVStream),
+  % Out size
+  write(CSVStream,RulesSize), write(CSVStream,','),
+  % time (CPU,Sys,Wall,CPU+Sys)
+  write(CSVStream,T),  write(CSVStream,','), 
+  write(CSVStream,S),  write(CSVStream,','), 
+  write(CSVStream,W),  write(CSVStream,','),
+  write(CSVStream,Lt), write(CSVStream,'\n'),
+  close(CSVStream).
+
 
 check_entailment(BK,E,Ps,Ns) :-
   Ep=[],

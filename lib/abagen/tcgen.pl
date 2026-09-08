@@ -517,7 +517,7 @@ write_5fcv(6,_,_).
 write_5fcv(I,EpRP,EnRP) :-
     nth1(I,EpRP,SEp,REp), flatten(REp,FREp), 
     nth1(I,EnRP,SEn,REn), flatten(REn,FREn),
-    write(fold(I,SEp,SEn,FREp,FREn)), write('.'), nl,
+    write(fold(I,FREp,FREn,SEp,SEn)), write('.'), nl,
     I1 is I+1,
     write_5fcv(I1,EpRP,EnRP).
 
@@ -526,4 +526,4 @@ tcgen(M,BKsize,E) :-
   try(50,export_predictor_abalpb(M,BKsize,E)),
   !.
 tcgen(M,BKsize,E) :-
-   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 10 times!'), nl.      
+   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 50 times!'), nl.      
