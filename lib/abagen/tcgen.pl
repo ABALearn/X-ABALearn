@@ -412,71 +412,53 @@ export_predictor_abalpb(M,BKsize,E) :-
     gensym('abaf.',BaseFileName),
     generate_abaf(P,C,A,F,BdL,R,Pred,Univ,Facts,Rules,_Asm,Contr),
     %%%
-    atom_concat(BaseFileName,'.pred.aba',ABAFPREDFileName),
-    tell(ABAFPREDFileName),
+    pred_filename(BaseFileName,PREDFileName),
+    tell(PREDFileName),
     print_abaf(Facts,Rules,Contr),
     told,
-    write('ABA Learning problem written on file '), write(ABAFPREDFileName), nl,
+    write('ABA Learning problem written on file '), write(PREDFileName), nl,
     %%%
     select_learnable_pred(Rules,LearnPred),
     % Examples are generated from extensions
     % Hence, constants occurring in examples occur in facts as well
     % LearnPred is a subset of the predicates of Rules
-    ( arclaims_from_extensions(M,ABAFPREDFileName,LearnPred,Univ,E, Ep,SEp,En,SEn) -> 
+    ( arclaims_from_extensions(M,PREDFileName,LearnPred,Univ,E, Ep,SEp,En,SEn) -> 
       true 
     ; 
-      ( delete_file(ABAFPREDFileName), fail ) 
+      ( delete_file(PREDFileName), fail ) 
     ),
     write('predictor: '), nl,
     write('  BK size: '), write(BKsize), nl, 
-    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,
     write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
+    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,   
     write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
     write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,    
     write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
     write('  Pos.Ex. (Tot.Pos.): '), length(SEp,SEpL), write(SEpL), length(Ep,EpL), write(' ('), write(EpL), write(')'), nl,
     write('  Neg.Ex. (Tot.Neg.): '), length(SEn,SEnL), write(SEnL), length(En,EnL), write(' ('), write(EnL), write(')'), nl,    
     %%% ABALPB - remove half of the rules
-    length(Rules,RulesLength),
-    H is div(RulesLength,2),
-    rnd_select_lst(H,Rules,SRules,_),
-    atom_concat(BaseFileName,'.genlp.aba',GENLPFileName),
-    tell(GENLPFileName),
-    print_abaf(Facts,SRules,Contr),
-    told,
-    read_abaf(GENLPFileName, GENLPABAF), 
-    ( satisfiable(GENLPABAF) ->
-      true
-    ;
-      ( delete_file(ABAFPREDFileName), delete_file(GENLPFileName), fail )
-    ),
-    write('general ABALP: '), nl,
-    write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl, 
+    genlp_filename(BaseFileName,GENLPFileName), 
+    generate_genlp(GENLPFileName,Facts,Rules,Contr, GENRES), 
     %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
-    rem_pred_rules(Rules,LearnPred,SRules1),
-    atom_concat(BaseFileName,'.dislp.aba',DISLPFileName),
-    ( SRules1 == [] ->
-      ( write('WARNING: disjoint ABALP is tabular -- skip '), nl )
-    ;
-      (
-        tell(DISLPFileName),
-        print_abaf(Facts,SRules1,Contr),
-        told,
-        read_abaf(DISLPFileName, DISLPABAF),
-        ( satisfiable(DISLPABAF) ->
-          true
-        ;
-          ( delete_file(ABAFPREDFileName), delete_file(GENLPFileName), delete_file(DISLPFileName), fail )
-        ),
-        write('disjoint ABALP: '), nl,
-        write('  Rules:   '), length(SRules1,SRules1L), write(SRules1L), nl
-      )
-    ), 
+    dislp_filename(BaseFileName,DISLPFileName), 
+    generate_dislp(DISLPFileName,Facts,Rules,Contr,LearnPred, DISRES), 
     %%% TAB_ABALPB - remove all rules
-    atom_concat(BaseFileName,'.tablp.aba',TABLPFileName),
+    tablp_filename(BaseFileName,TABLPFileName),
     tell(TABLPFileName),    
     print_abaf(Facts,[],[]),
     told,
+    %%%
+    %maplist(term_to_atom,LearnPred,NormLearnPred),
+    term_to_atom(LearnPred,NormLearnPredAtom),
+    % setup_call_cleanup(
+    %    open('tcgen.csv',append,CSVStream),
+    %    csv_write_stream(CSVStream,[row(PREDFileName,BKsize,FactsL,RulesL,PredL,UnivL,LearnPredL,NormLearnPredAtom,EpL,EnL,
+    %                                 GENLPFileName,GENRES,
+    %                                 DISLPFileName,DISRES,
+    %                                 TABLPFileName)],[]),
+    %    close(CSVStream)
+    % ),
+    %%% 5fCV
     random_five_fold(SEp, EpRP),
     random_five_fold(SEn, EnRP),
     atom_concat(BaseFileName,'.5fCV.pl',FileName),
@@ -487,6 +469,64 @@ export_predictor_abalpb(M,BKsize,E) :-
     write('lp('), write(LearnPred), write(').'), nl,
     write_5fcv(1,EpRP,EnRP),
     told.
+
+%
+pred_filename(BaseFileName,PREDFileName) :-
+    atom_concat(BaseFileName,'.pred.aba',PREDFileName).
+%
+genlp_filename(BaseFileName,GENLPFileName) :-
+    atom_concat(BaseFileName,'.genlp.aba',GENLPFileName).
+%
+dislp_filename(BaseFileName,DISLPFileName) :-
+    atom_concat(BaseFileName,'.dislp.aba',DISLPFileName).
+%
+tablp_filename(BaseFileName,TABLPFileName) :-
+    atom_concat(BaseFileName,'.tablp.aba',TABLPFileName).    
+
+%
+generate_genlp(GENLPFileName,Facts,Rules,Contr, SRulesL) :-
+    length(Rules,RulesLength),
+    H is div(RulesLength,2),
+    rnd_select_lst(H,Rules,SRules,_),
+    tell(GENLPFileName),
+    print_abaf(Facts,SRules,Contr),
+    told,
+    read_abaf(GENLPFileName, GENLPABAF), 
+    satisfiable(GENLPABAF),
+    !,
+    write('general ABALP: '), nl,
+    write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl.
+generate_genlp(GENLPFileName,_Facts,_Rules,_Contr,'unsat') :-
+    delete_file(GENLPFileName).
+
+%
+generate_dislp(DISLPFileName,Facts,Rules,Contr,LearnPred, Res) :-
+    rem_pred_rules(Rules,LearnPred,SRules),
+    generate_dislp_aux(DISLPFileName,Facts,Rules,SRules,Contr, Res). 
+%
+generate_dislp_aux(_DISLPFileName,_Facts,_Rules,SRules,_Contr, 'tab') :-
+    SRules == [],
+    !,    
+    write('WARNING: disjoint ABALP is tabular -- skip '), nl.      
+%
+generate_dislp_aux(_DISLPFileName,_Facts,Rules,SRules,_Contr, 'gen') :-
+    length(Rules,N),
+    length(SRules,N),
+    !,    
+    write('WARNING: disjoint ABALP is general -- skip '), nl.    
+%    
+generate_dislp_aux(DISLPFileName,Facts,_Rules,SRules,Contr, SRulesL) :-
+    tell(DISLPFileName),
+    print_abaf(Facts,SRules,Contr),
+    told,
+    read_abaf(DISLPFileName, DISLPABAF),
+    satisfiable(DISLPABAF),
+    !,
+    write('disjoint ABALP: '), nl,
+    write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl.
+%
+generate_dislp_aux(DISLPFileName,_Facts,_Rules,_SRules,_Contr, 'unsat') :-
+    delete_file(DISLPFileName).
 
 %
 select_learnable_pred(Rules,LPreds) :-
