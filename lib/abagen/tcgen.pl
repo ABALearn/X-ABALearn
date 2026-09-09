@@ -266,12 +266,12 @@ not_in_facts([Ex|Exs],Facts,[Ex|CNex]) :-
 not_in_facts([_Ex|Exs],Facts,CNex) :- 
     not_in_facts(Exs,Facts,CNex).
 
-rnd_select_lst(0,_,Rest,Rest).
-rnd_select_lst(N,L,[E|Ex],Rest) :-
+rnd_select_lst(0,_,[]).
+rnd_select_lst(N,L,[E|Ex]) :-
     N>=1,
     N1 is N-1,
     random_select(E,L,L1),
-    rnd_select_lst(N1,L1,Ex,Rest).
+    rnd_select_lst(N1,L1,Ex).
 
 rem_pred_rules([],_,[]).
 rem_pred_rules([R|Rs],ExPred,Rs1) :-
@@ -437,7 +437,7 @@ export_predictor_abalpb(M,BKsize,E) :-
     write('  Pos.Ex. (Tot.Pos.): '), length(SEp,SEpL), write(SEpL), length(Ep,EpL), write(' ('), write(EpL), write(')'), nl,
     write('  Neg.Ex. (Tot.Neg.): '), length(SEn,SEnL), write(SEnL), length(En,EnL), write(' ('), write(EnL), write(')'), nl,    
     %%% ABALPB - remove half of the rules
-    genlp_filename(BaseFileName,GENLPFileName), 
+    genlp_filename(BaseFileName,GENLPFileName),
     generate_genlp(GENLPFileName,Facts,Rules,Contr, GENRES), 
     %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
     dislp_filename(BaseFileName,DISLPFileName), 
@@ -486,7 +486,7 @@ tablp_filename(BaseFileName,TABLPFileName) :-
 generate_genlp(GENLPFileName,Facts,Rules,Contr, SRulesL) :-
     length(Rules,RulesLength),
     H is div(RulesLength,2),
-    rnd_select_lst(H,Rules,SRules,_),
+    rnd_select_lst(H,Rules,SRules),
     tell(GENLPFileName),
     print_abaf(Facts,SRules,Contr),
     told,
