@@ -448,16 +448,15 @@ export_predictor_abalpb(M,BKsize,E) :-
     print_abaf(Facts,[],[]),
     told,
     %%%
-    %maplist(term_to_atom,LearnPred,NormLearnPred),
-    term_to_atom(LearnPred,NormLearnPredAtom),
-    % setup_call_cleanup(
-    %    open('tcgen.csv',append,CSVStream),
-    %    csv_write_stream(CSVStream,[row(PREDFileName,BKsize,FactsL,RulesL,PredL,UnivL,LearnPredL,NormLearnPredAtom,EpL,EnL,
-    %                                 GENLPFileName,GENRES,
-    %                                 DISLPFileName,DISRES,
-    %                                 TABLPFileName)],[]),
-    %    close(CSVStream)
-    % ),
+    %term_to_atom(LearnPred,NormLearnPredAtom),
+    append_csv_data('tcgen.csv', 
+        [row(PREDFileName,BKsize,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
+            EpL,EnL,
+            GENLPFileName,GENRES,
+            DISLPFileName,DISRES,
+            TABLPFileName)
+        ]
+    ),
     %%% 5fCV
     random_five_fold(SEp, EpRP),
     random_five_fold(SEn, EnRP),
@@ -497,6 +496,7 @@ generate_genlp(GENLPFileName,Facts,Rules,Contr, SRulesL) :-
     write('general ABALP: '), nl,
     write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl.
 generate_genlp(GENLPFileName,_Facts,_Rules,_Contr,'unsat') :-
+    % if BK is unsat, the problem is deleted
     delete_file(GENLPFileName).
 
 %
@@ -506,13 +506,17 @@ generate_dislp(DISLPFileName,Facts,Rules,Contr,LearnPred, Res) :-
 %
 generate_dislp_aux(_DISLPFileName,_Facts,_Rules,SRules,_Contr, 'tab') :-
     SRules == [],
-    !,    
+    !,
+    % if all rules have been removed, than disjoint and tabular coincide
+    % no output is produced
     write('WARNING: disjoint ABALP is tabular -- skip '), nl.      
 %
 generate_dislp_aux(_DISLPFileName,_Facts,Rules,SRules,_Contr, 'gen') :-
     length(Rules,N),
     length(SRules,N),
     !,    
+    % if no rule has been removed, than disjoint and general coincide
+    % no output is produced
     write('WARNING: disjoint ABALP is general -- skip '), nl.    
 %    
 generate_dislp_aux(DISLPFileName,Facts,_Rules,SRules,Contr, SRulesL) :-
@@ -560,6 +564,29 @@ write_5fcv(I,EpRP,EnRP) :-
     write(fold(I,FREp,FREn,SEp,SEn)), write('.'), nl,
     I1 is I+1,
     write_5fcv(I1,EpRP,EnRP).
+
+
+append_csv_data(File, Rows) :-
+    % Check if the file does not exist or is empty (size 0)
+    ( ( \+ exists_file(File) ; size_file(File, 0) ) ->
+        NeedsHeader = true
+    ;   
+        NeedsHeader = false
+    ),
+    setup_call_cleanup(
+        open(File, append, Out),
+        (( NeedsHeader == true ->
+          % write header row
+          csv_write_stream(Out, [row('Predict','#BK','#Facts','#Rules','#Preds','#Const','#Learn','#Ep','#En',
+                                     'GenLP','#Rules','DisLP','#Rules','TabLP')], [])
+          ;   
+            true
+        ), 
+        % write data row
+        csv_write_stream(Out, Rows, []) 
+        ),
+        close(Out)
+    ).
 
 %%%
 tcgen(M,BKsize,E) :-
