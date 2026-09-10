@@ -52,6 +52,7 @@ learn_and_test_5fCV(BK,I) :-
   ;
     true
   ),
+  !,
   I1 is I+1,
   learn_and_test_5fCV(BK,I1).
 
@@ -67,6 +68,7 @@ performance_eval(BK) :-
 %
 load_csv_aux(_,N,N).
 load_csv_aux(File,I, O) :-
+  I < O,
   load_csv_loop(File,I),
   I1 is I+1,
   load_csv_aux(File,I1, O).
@@ -80,6 +82,7 @@ load_csv_loop(FileBaseName,I) :-
 %
 load_csv_tail(File) :-
   exists_file(File),
+  !,
   csv_read_file(File,Rows,[functor(d)]),
   length(Rows,L), write(L), write(','), % total num of elements
   compute_metrics(Rows,0,0,0,0,0,0, P,N,TP,TN,FP,FN),
@@ -94,7 +97,7 @@ load_csv_tail(File) :-
   recall(TP,FN,       Rval), format('~2f',Rval),  write(','),
   f1score(TP,FP,FN,  F1val), format('~2f',F1val), nl.
 load_csv_tail(_) :-
-  write('to'), nl. 
+  write('noSol'), nl. 
 
 %
 compute_metrics([],P_in,N_in,TP_in,TN_in,FP_in,FN_in, P_in,N_in,TP_in,TN_in,FP_in,FN_in).

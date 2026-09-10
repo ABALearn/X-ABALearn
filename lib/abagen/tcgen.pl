@@ -186,8 +186,8 @@ arclaims_from_extensions(x,ABAF,PredwArity,Univ, Ep,En) :-
     extension(ABAF,PredwArity, S),
     arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
 arclaims_from_extensions(a,ABAF,PredwArity,Univ, Ep,En) :-
-    extensions(ABAF,PredwArity, S),
-    arclaims_from_extensions_aux(S,PredwArity,Univ, Ep,En).
+    abaf_consequences(ABAF,PredwArity, C,B),
+    arclaims_from_extensions_aux(C,B,PredwArity,Univ, Ep,En).
     
 % S is a list
 arclaims_from_extension_aux(_S,[],_Univ, [],[]).
@@ -196,11 +196,11 @@ arclaims_from_extension_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :
     findall(Neg,(member(C,Univ),Neg=..[P,C],\+member(Neg,Ep)),En),
     arclaims_from_extension_aux(S,Preds,Univ, Eps,Ens).
 % S is a list of list
-arclaims_from_extensions_aux(_S,[],_Univ, [],[]).
-arclaims_from_extensions_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
-    findall(Pos,(functor(Pos,P,N),maplist(member(Pos),S)),Ep),
-    findall(Neg,(member(C,Univ),Neg=..[P,C],maplist(nonmember(Neg),S)),En),
-    arclaims_from_extensions_aux(S,Preds,Univ, Eps,Ens).    
+arclaims_from_extensions_aux(_C,_B,[],_Univ, [],[]).
+arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
+    findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep),
+    findall(Neg,(member(C,Univ),Neg=..[P,C],\+member(Neg,Brave)),En),
+    arclaims_from_extensions_aux(Cautious,Brave,Preds,Univ, Eps,Ens).    
 
 nonmember(E,L) :-
     memberchk(E,L), % assuming E ground
@@ -208,10 +208,45 @@ nonmember(E,L) :-
     fail.
 nonmember(_,_).
 
+
 generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
     findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
     findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
 
+
+abaf_consequences(ABAF,Ps, C,B) :-
+  % for each P/N in Ps, add a show directive
+  % if Ps is empty, then the extension includes all the predicates 
+  findall(directive(show,P/N),member(P/N,Ps),Sw),
+  utl_rules_append(ABAF,Sw,Rs),
+  % create the ASP encoding
+  asp(Rs,[],[],[],[],[], RsASP),
+  % write rules to file
+  dump_rules(RsASP),
+  % invoke clingo to compute the answer sets of RsASP and write them to cc.clingo
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --enum-mode=cautious > cc.clingo 2>> clingo.stderr.log',_),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' | awk \'/Answer:/ {f=NR}; f && NR==f+1 { last = $0 } END { print "[" last "]." }\' > cc.pl'),
+  shell('cat cc.clingo | grep \'^SATISFIABLE\'',EXIT_CODE),
+  !,
+  EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
+  see('cc.pl'),
+  % read 'cc.clingo' - read first extension
+  read_all([C]),
+  seen,
+  % invoke clingo to compute the answer sets of RsASP and write them to cc.clingo
+  shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --enum-mode=brave > cc.clingo 2>> clingo.stderr.log',_),
+  shell('cat cc.clingo | grep -A1 \'^Answer:\' | awk \'/Answer:/ {f=NR}; f && NR==f+1 { last = $0 } END { print "[" last "]." }\' > cc.pl'), 
+  see('cc.pl'),
+  % read 'cc.clingo' - read first extension
+  read_all([B]),
+  seen.  
+% assert all terms from file
+read_all([A|As]) :-
+  read(A),
+  A \== end_of_file,
+  !,
+  read_all(As).
+read_all([]).
 
 rnd_learnable(0,_Pred,[]). 
 rnd_learnable(L,Pred,[P|T]) :- 
@@ -453,9 +488,9 @@ export_predictor_abalpb(M,BKsize,E) :-
     atom_concat(BaseFileName,'.5fCV.pl',FileName),
     tell(FileName),
     write(':- dynamic bk/1, lp/1, fold/5.'), nl,
-    write('bk('), writeq(GENLPFileName), write(').'), nl,
-    write('bk('), writeq(DISLPFileName),  write(').'), nl,
-    write('bk('), writeq(TABLPFileName),  write(').'), nl,
+    writebkfile(GENLPFileName),
+    writebkfile(DISLPFileName),
+    writebkfile(TABLPFileName),
     write('lp('), write(LearnPred), write(').'), nl,
     write_5fcv(1,EpRP,EnRP),
     told,
@@ -463,13 +498,20 @@ export_predictor_abalpb(M,BKsize,E) :-
     %term_to_atom(LearnPred,NormLearnPredAtom),
     %term_string(FileName,FileNameS),
     append_csv_data('tcgen.csv', 
-        [row(FileName,PREDFileName,BKsize,E,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
+        [row(FileName,M,PREDFileName,BKsize,E,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
             EpL,EnL,
             GENLPFileName,GENRES,
             DISLPFileName,DISRES,
             TABLPFileName)
         ]
     ).
+
+
+writebkfile(File) :-
+    exists_file(File),
+    !,
+    write('bk('), writeq(File), write(').'), nl.
+writebkfile(_File).
 
 %
 pred_filename(BaseFileName,PREDFileName) :-
@@ -579,7 +621,8 @@ append_csv_data(File, Rows) :-
         open(File, append, Out),
         (( NeedsHeader == true ->
           % write header row
-          csv_write_stream(Out, [row('TestCase','Predict','#BK','#Ex','#Facts','#Rules','#Preds','#Const','#Learn','#Ep','#En',
+          csv_write_stream(Out, [row('TestCase','Mode','Predict','#BK','#Ex','#Facts','#Rules','#Preds','#Const','#Learn',
+                                     '#Ep','#En',
                                      'GenLP','#Rules','DisLP','#Rules','TabLP')], [])
           ;   
             true
