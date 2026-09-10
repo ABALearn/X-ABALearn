@@ -24,7 +24,7 @@ tcrun(TC) :-
 %
 learn_and_test_ABAFs([]).
 learn_and_test_ABAFs([BK|BKs]) :-
-  learn_and_test(BK),
+  %learn_and_test(BK),
   performance_eval(BK),
   learn_and_test_ABAFs(BKs).
 
@@ -62,27 +62,24 @@ performance_eval(BK) :-
   atom_concat(BaseFileName,'.PM.csv',FilePM),
   tell(FilePM),
   write('ID,tot,P,N,TP,TN,FP,FN,Accuracy,Precision,Recall,F1'), nl,
-  load_csv_aux(BaseFileName,1, 6),
-  told.
+  load_csv_aux(BaseFileName,1),
+  told,
+  append_performance_res(BaseFileName,FilePM).
 
 %
-load_csv_aux(_,N,N).
-load_csv_aux(File,I, O) :-
-  I < O,
+load_csv_aux(_,6).
+load_csv_aux(File,I) :-
+  I < 6, 
   load_csv_loop(File,I),
   I1 is I+1,
-  load_csv_aux(File,I1, O).
+  load_csv_aux(File,I1).
 
 %
 load_csv_loop(FileBaseName,I) :-
   atomic_list_concat([FileBaseName,'.f',I,'.sol.test.csv'],File),
-  write('f'), write(I), write(','),
-  load_csv_tail(File).
-
-%
-load_csv_tail(File) :-
   exists_file(File),
   !,
+  write('f'), write(I), write(','),
   csv_read_file(File,Rows,[functor(d)]),
   length(Rows,L), write(L), write(','), % total num of elements
   compute_metrics(Rows,0,0,0,0,0,0, P,N,TP,TN,FP,FN),
@@ -96,8 +93,7 @@ load_csv_tail(File) :-
   precision(TP,FP,    Pval), format('~2f',Pval),  write(','), 
   recall(TP,FN,       Rval), format('~2f',Rval),  write(','),
   f1score(TP,FP,FN,  F1val), format('~2f',F1val), nl.
-load_csv_tail(_) :-
-  write('noSol'), nl. 
+load_csv_loop(_FileBaseName,_I).
 
 %
 compute_metrics([],P_in,N_in,TP_in,TN_in,FP_in,FN_in, P_in,N_in,TP_in,TN_in,FP_in,FN_in).
@@ -164,4 +160,50 @@ f1score(TP,_FP,_FN, F1) :-
 f1score(TP,FP,FN, F1) :-
   Num is 2*TP,
   Den is Num + FP+FN,
-  F1 is Num/Den.   
+  F1 is Num/Den. 
+
+%
+append_performance_res(ABAFile,File) :-
+  csv_read_file(File,[_|Rows],[functor(d)]),
+  length(Rows,N),
+  N > 0,
+  !,
+  averages(Rows,0,0,0,0, AcA,PrA,ReA,F1A),
+  % Check if the file does not exist or is empty (size 0)
+  ( ( \+ exists_file('PM.csv') ; size_file('PM.csv', 0) ) ->
+    NeedsHeader = true
+  ;   
+    NeedsHeader = false
+  ),
+  atomic_list_concat([_,ID,Type],'.',ABAFile),
+  setup_call_cleanup(
+      open('PM.csv', append, Out),
+        (
+          ( NeedsHeader == true ->
+          % write header row
+          csv_write_stream(Out, [row('TestCase','ID','Type','Accuracy','Precision','Recall','F1')], [])
+          ;   
+            true
+          ), 
+        % write data row
+        csv_write_stream(Out, [row(ABAFile,ID,Type,AcA,PrA,ReA,F1A)], []) 
+        ),
+      close(Out)
+  ).
+append_performance_res(_ABAFile,_File).  
+%
+averages([],AcI,PrI,ReI,F1I, AcA,PrA,ReA,F1A) :-
+  AcA is AcI / 5,
+  PrA is PrI / 5,
+  ReA is ReI / 5,
+  F1A is F1I / 5.
+averages([Row|Rows],AcI,PrI,ReI,F1I, AcA,PrA,ReA,F1A) :-
+  arg( 9,Row,Ac),
+  arg(10,Row,Pr),
+  arg(11,Row,Re),
+  arg(12,Row,F1),
+  AcI1 is AcI+Ac,
+  PrI1 is PrI+Pr,
+  ReI1 is ReI+Re,
+  F1I1 is F1I+F1,
+  averages(Rows,AcI1,PrI1,ReI1,F1I1, AcA,PrA,ReA,F1A).
