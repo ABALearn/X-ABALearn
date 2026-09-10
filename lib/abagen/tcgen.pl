@@ -447,27 +447,29 @@ export_predictor_abalpb(M,BKsize,E) :-
     tell(TABLPFileName),    
     print_abaf(Facts,[],[]),
     told,
-    %%%
-    %term_to_atom(LearnPred,NormLearnPredAtom),
-    append_csv_data('tcgen.csv', 
-        [row(PREDFileName,BKsize,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
-            EpL,EnL,
-            GENLPFileName,GENRES,
-            DISLPFileName,DISRES,
-            TABLPFileName)
-        ]
-    ),
     %%% 5fCV
     random_five_fold(SEp, EpRP),
     random_five_fold(SEn, EnRP),
     atom_concat(BaseFileName,'.5fCV.pl',FileName),
     tell(FileName),
-    write('bk(\''), write(GENLPFileName), write('\').'), nl,
-    write('bk(\''), write(DISLPFileName), write('\').'), nl,
-    write('bk(\''), write(TABLPFileName), write('\').'), nl,
+    write(':- dynamic bk/1, lp/1, fold/5.'), nl,
+    write('bk('), writeq(GENLPFileName), write(').'), nl,
+    write('bk('), writeq(DISLPFileName),  write(').'), nl,
+    write('bk('), writeq(TABLPFileName),  write(').'), nl,
     write('lp('), write(LearnPred), write(').'), nl,
     write_5fcv(1,EpRP,EnRP),
-    told.
+    told,
+    %%%
+    %term_to_atom(LearnPred,NormLearnPredAtom),
+    %term_string(FileName,FileNameS),
+    append_csv_data('tcgen.csv', 
+        [row(FileName,PREDFileName,BKsize,E,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
+            EpL,EnL,
+            GENLPFileName,GENRES,
+            DISLPFileName,DISRES,
+            TABLPFileName)
+        ]
+    ).
 
 %
 pred_filename(BaseFileName,PREDFileName) :-
@@ -577,7 +579,7 @@ append_csv_data(File, Rows) :-
         open(File, append, Out),
         (( NeedsHeader == true ->
           % write header row
-          csv_write_stream(Out, [row('Predict','#BK','#Facts','#Rules','#Preds','#Const','#Learn','#Ep','#En',
+          csv_write_stream(Out, [row('TestCase','Predict','#BK','#Ex','#Facts','#Rules','#Preds','#Const','#Learn','#Ep','#En',
                                      'GenLP','#Rules','DisLP','#Rules','TabLP')], [])
           ;   
             true
@@ -593,4 +595,12 @@ tcgen(M,BKsize,E) :-
   try(50,export_predictor_abalpb(M,BKsize,E)),
   !.
 tcgen(M,BKsize,E) :-
-   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 50 times!'), nl.      
+  write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 50 times!'), nl.
+
+
+tcgen(0,_M,_BKsize,_E).
+tcgen(N,M,BKsize,E) :-
+  N>=1,
+  N1 is N-1,
+  tcgen(M,BKsize,E),
+  tcgen(N1,M,BKsize,E).

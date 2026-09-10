@@ -2,10 +2,24 @@
 
 :- consult('../../xabal.pl').
 
+tcrun_csv(File) :-
+  csv_read_file(File,[_|Rows],[functor(tc)]),
+  tcrun_csv_aux(Rows).
+%
+tcrun_csv_aux([]).
+tcrun_csv_aux([TC|TCs]) :-
+  arg(1,TC,TCFile),
+  tcrun(TCFile),
+  tcrun_csv_aux(TCs).  
+
+
 tcrun(TC) :-
   consult(TC),
   findall(Name,bk(Name),BKs),
-  learn_and_test_ABAFs(BKs).
+  learn_and_test_ABAFs(BKs),
+  retractall(bk(_)),
+  retractall(lp(_)),
+  retractall(fold(_,_,_,_,_)).
 
 %
 learn_and_test_ABAFs([]).
