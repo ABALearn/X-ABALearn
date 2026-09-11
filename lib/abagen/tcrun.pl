@@ -24,7 +24,7 @@ tcrun(TC) :-
 %
 learn_and_test_ABAFs([]).
 learn_and_test_ABAFs([BK|BKs]) :-
-  %learn_and_test(BK),
+  learn_and_test(BK),
   performance_eval(BK),
   learn_and_test_ABAFs(BKs).
 

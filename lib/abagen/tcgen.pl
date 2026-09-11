@@ -633,17 +633,33 @@ append_csv_data(File, Rows) :-
         close(Out)
     ).
 
-%%%
+% generate a test cases of size BKsize with E examples each for mode M
 tcgen(M,BKsize,E) :-
   try(50,export_predictor_abalpb(M,BKsize,E)),
   !.
 tcgen(M,BKsize,E) :-
   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 50 times!'), nl.
 
-
+% generate N test cases
 tcgen(0,_M,_BKsize,_E).
 tcgen(N,M,BKsize,E) :-
   N>=1,
   N1 is N-1,
   tcgen(M,BKsize,E),
   tcgen(N1,M,BKsize,E).
+
+% generate a test cases of size BKsize with E examples each for mode M
+tcgen_rnd(M,BKsizeMin,BKsizeMax,E) :-
+  random_between(BKsizeMin,BKsizeMax,BKsize),
+  try(50,export_predictor_abalpb(M,BKsize,E)),
+  !.
+tcgen_rnd(M,BKsizeMin,BKsizeMax,E) :-
+  write('WARNING: '), write(tcgen(M,BKsizeMin,BKsizeMax,E)), write('failed 50 times!'), nl.
+
+% generate N test cases
+tcgen(0,_M,_BKsizeMin,_BKsizeMax,_E).
+tcgen(N,M,BKsizeMin,BKsizeMax,E) :-
+  N>=1,
+  N1 is N-1,
+  tcgen_rnd(M,BKsizeMin,BKsizeMax,E),
+  tcgen(N1,M,BKsizeMin,BKsizeMax,E).  
