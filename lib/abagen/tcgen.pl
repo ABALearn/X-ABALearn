@@ -171,15 +171,12 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     candidate_ex(T,Univ,Cex),
     rnd_select_ex(E,Cex,Ex,_Rest).
 
-arclaims_from_extensions(M,ABAFPREDBaseFileName,PredwArity,Univ,E, Ep,SEp,En,SEn) :-
+arclaims_from_extensions_file(M,ABAFPREDBaseFileName,PredwArity,Univ, Ep,En) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
     !,
     arclaims_from_extensions(M,ABAF,PredwArity,Univ, PEp,PEn),
-    generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En),
-    H is div(E,2),
-    n_random_select(H,Ep,SEp),
-    n_random_select(H,En,SEn).
+    generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En).
 
 %
 arclaims_from_extensions(x,ABAF,PredwArity,Univ, Ep,En) :-
@@ -208,11 +205,27 @@ nonmember(E,L) :-
     fail.
 nonmember(_,_).
 
-
+%
 generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
     findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
     findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
 
+%
+generate_examples(DisFacts,GenFacts,E,Ep,En,_PREDFileName,_GENLPFileName,_DISLPFileName,_TABLPFileName, SEp,SEn) :-
+    constants_in(DisFacts,Const1), sort(Const1,SConst1),
+    constants_in(GenFacts,Const2), sort(Const2,SConst2),
+    intersection(SConst1,SConst2,Const),
+    H is div(E,2),
+    rnd_select_lst_chk(H,Ep,Const, SEp),
+    rnd_select_lst_chk(H,En,Const, SEn),
+    !.
+% can't select examples, remove intermediate result    
+generate_examples(_DisFacts,_GenFacts,_E,_Ep,_En,PREDFileName,GENLPFileName,DISLPFileName,TABLPFileName, [],[]) :-
+    deletefile(PREDFileName),
+    deletefile(GENLPFileName),
+    deletefile(DISLPFileName),
+    deletefile(TABLPFileName),
+    fail.
 
 abaf_consequences(ABAF,Ps, C,B) :-
   % for each P/N in Ps, add a show directive
@@ -269,8 +282,7 @@ n_random_select(L,Pred,[P|T],Rest) :-
     random_select(P,Pred,Pred1),
     n_random_select(L1,Pred1,T,Rest).
 
-
-    
+%
 constants_in([],[]).
 constants_in([(_H,B)|Rules],U) :- 
     findall(C,member(_=C,B),Cs),
@@ -282,7 +294,6 @@ candidate_ex(T,Univ,Cex) :-
     findall(Ex,(member(P,T), member(C,Univ), Ex=..[P,C]), Cex).
 
 rnd_select_ex(0,Cex,[],Cex).
-%rnd_select_ex(N,[],[],[]) :- N>=1.
 rnd_select_ex(N,Cex,Ex,Rest) :-
     N>=1,
     N1 is N-1,
@@ -290,7 +301,8 @@ rnd_select_ex(N,Cex,Ex,Rest) :-
     random_select(E,Cex,Cex1),
     Ex=[E|Ex1],
     rnd_select_ex(N1,Cex1,Ex1,Rest).
-
+    
+%
 not_in_facts([],_Facts,[]).
 not_in_facts([Ex|Exs],Facts,[Ex|CNex]) :- 
     Ex=..[P,C],
@@ -307,6 +319,23 @@ rnd_select_lst(N,L,[E|Ex]) :-
     N1 is N-1,
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex).
+%
+rnd_select_lst_chk(0,_L,_Const,[]).
+rnd_select_lst_chk(N,L,Const,[E|Ex]) :-
+    N>=1,
+    random_select(E,L,L1),
+    arg(1,E,C),
+    ( memberchk(C,Const) -> N1 is N-1 ; N1 = N ),
+    rnd_select_lst_chk(N1,L1,Const,Ex).    
+
+%
+rnd_select_lst(0,R,[],R).
+rnd_select_lst(N,L,[E|Ex],R) :-
+    N>=1,
+    N1 is N-1,
+    random_select(E,L,L1),
+    rnd_select_lst(N1,L1,Ex,R).    
+
 
 rem_pred_rules([],_,[]).
 rem_pred_rules([R|Rs],ExPred,Rs1) :-
@@ -441,9 +470,8 @@ try_aux(N,Max,G) :-
 
 
 export_predictor_abalpb(M,BKsize,E) :-
-    ( BKsize>=3, E>=10 ),
-    R is div(BKsize,3),
-    hparams(BKsize,R, P,C,A,F,BdL,_L), % L = learnable predicates
+    ( BKsize>=10, E>=10 ),
+    pred_hparams(BKsize, R,P,C,A,F,BdL),
     gensym('abaf.',BaseFileName),
     generate_abaf(P,C,A,F,BdL,R,Pred,Univ,Facts,Rules,_Asm,Contr),
     %%%
@@ -457,31 +485,24 @@ export_predictor_abalpb(M,BKsize,E) :-
     % Examples are generated from extensions
     % Hence, constants occurring in examples occur in facts as well
     % LearnPred is a subset of the predicates of Rules
-    ( arclaims_from_extensions(M,PREDFileName,LearnPred,Univ,E, Ep,SEp,En,SEn) -> 
+    ( arclaims_from_extensions_file(M,PREDFileName,LearnPred,Univ, Ep,En) -> 
       true 
     ; 
       ( delete_file(PREDFileName), fail ) 
     ),
-    write('predictor: '), nl,
-    write('  BK size: '), write(BKsize), nl, 
-    write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
-    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,   
-    write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
-    write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,    
-    write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
-    write('  Pos.Ex. (Tot.Pos.): '), length(SEp,SEpL), write(SEpL), length(Ep,EpL), write(' ('), write(EpL), write(')'), nl,
-    write('  Neg.Ex. (Tot.Neg.): '), length(SEn,SEnL), write(SEnL), length(En,EnL), write(' ('), write(EnL), write(')'), nl,    
-    %%% ABALPB - remove half of the rules
-    genlp_filename(BaseFileName,GENLPFileName),
-    generate_genlp(GENLPFileName,Facts,Rules,Contr, GENRES), 
-    %%% DIS_ABALPB - remove all rules whose predicates occurs in Ex
-    dislp_filename(BaseFileName,DISLPFileName), 
-    generate_dislp(DISLPFileName,Facts,Rules,Contr,LearnPred, DISRES), 
-    %%% TAB_ABALPB - remove all rules
+    %%% DIS_ABALPB - remove all facts and rules whose predicates occurs among learnable predicates
+    dislp_filename(BaseFileName,DISLPFileName),
+    generate_dislp(PREDFileName,DISLPFileName,Facts,Rules,Contr,LearnPred, DisSFacts,_DisSRules,DisSFactsL,DisSRulesL,DISRES), 
+    %%% TAB_ABALPB - remove all facts whose predicates occurs among learnable predicates
     tablp_filename(BaseFileName,TABLPFileName),
     tell(TABLPFileName),    
-    print_abaf(Facts,[],[]),
+    print_abaf(DisSFacts,[],[]),
     told,
+    %%% ABALPB - remove randomly facts and rules 
+    genlp_filename(BaseFileName,GENLPFileName),
+    generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsL,DisSRulesL, GenSFacts,GENRES),
+    %%%
+    generate_examples(DisSFacts,GenSFacts,E,Ep,En,PREDFileName,GENLPFileName,DISLPFileName,TABLPFileName, SEp,SEn),
     %%% 5fCV
     random_five_fold(SEp, EpRP),
     random_five_fold(SEn, EnRP),
@@ -495,23 +516,48 @@ export_predictor_abalpb(M,BKsize,E) :-
     write_5fcv(1,EpRP,EnRP),
     told,
     %%%
+    write('predictor: '), nl,
+    write('  BK size: '), write(BKsize), nl, 
+    write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
+    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,   
+    write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
+    write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,    
+    write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
+    write('  Pos.Ex. (Tot.Pos.): '), length(SEp,SEpL), write(SEpL), length(Ep,EpL), write(' ('), write(EpL), write(')'), nl,
+    write('  Neg.Ex. (Tot.Neg.): '), length(SEn,SEnL), write(SEnL), length(En,EnL), write(' ('), write(EnL), write(')'), nl,    
+    %%%
     %term_to_atom(LearnPred,NormLearnPredAtom),
     %term_string(FileName,FileNameS),
     append_csv_data('tcgen.csv', 
         [row(FileName,M,PREDFileName,BKsize,E,FactsL,RulesL,PredL,UnivL,LearnPredL,%NormLearnPredAtom,
             EpL,EnL,
-            GENLPFileName,GENRES,
-            DISLPFileName,DISRES,
-            TABLPFileName)
+            DISRES,DisSFactsL,DisSRulesL,
+            TABLPFileName,
+            GENRES
+            )
         ]
     ).
 
+%
+pred_hparams(BKsize, R,P,C,A,F,BdL) :-
+    R is div(BKsize,5),
+    F is BKsize-R,
+    P is 10 + div(BKsize,20),
+    C is div(BKsize,2),
+    A is 1 + div(P,3),
+    BdL=2.    
 
 writebkfile(File) :-
     exists_file(File),
     !,
     write('bk('), writeq(File), write(').'), nl.
 writebkfile(_File).
+
+deletefile(File) :-
+    exists_file(File),
+    !,
+    delete_file(File).
+deletefile(_File).
 
 %
 pred_filename(BaseFileName,PREDFileName) :-
@@ -526,55 +572,52 @@ dislp_filename(BaseFileName,DISLPFileName) :-
 tablp_filename(BaseFileName,TABLPFileName) :-
     atom_concat(BaseFileName,'.tablp.aba',TABLPFileName).    
 
-%
-generate_genlp(GENLPFileName,Facts,Rules,Contr, SRulesL) :-
-    length(Rules,RulesLength),
-    H is div(RulesLength,2),
-    rnd_select_lst(H,Rules,SRules),
-    tell(GENLPFileName),
-    print_abaf(Facts,SRules,Contr),
-    told,
-    read_abaf(GENLPFileName, GENLPABAF), 
-    satisfiable(GENLPABAF),
-    !,
-    write('general ABALP: '), nl,
-    write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl.
-generate_genlp(GENLPFileName,_Facts,_Rules,_Contr,'unsat') :-
-    % if BK is unsat, the problem is deleted
-    delete_file(GENLPFileName).
 
+% generate disjont learning problem BK
+generate_dislp(PREDFileName,DISLPFileName,Facts,Rules,Contr,LearnPred, SFacts,SRules,SFactsL,SRulesL,DISRES) :-
+    rem_pred_rules(Facts,LearnPred,SFacts), length(SFacts,SFactsL),
+    rem_pred_rules(Rules,LearnPred,SRules), length(SRules,SRulesL),
+    generate_dislp_aux(PREDFileName,DISLPFileName,SFacts,Rules,SRules,Contr,DISRES). 
 %
-generate_dislp(DISLPFileName,Facts,Rules,Contr,LearnPred, Res) :-
-    rem_pred_rules(Rules,LearnPred,SRules),
-    generate_dislp_aux(DISLPFileName,Facts,Rules,SRules,Contr, Res). 
-%
-generate_dislp_aux(_DISLPFileName,_Facts,_Rules,SRules,_Contr, 'tab') :-
+generate_dislp_aux(_PREDFileName,_DISLPFileName,_SFacts,_Rules,SRules,_Contr, 'tab') :-
     SRules == [],
     !,
     % if all rules have been removed, than disjoint and tabular coincide
     % no output is produced
-    write('WARNING: disjoint ABALP is tabular -- skip '), nl.      
-%
-generate_dislp_aux(_DISLPFileName,_Facts,Rules,SRules,_Contr, 'gen') :-
-    length(Rules,N),
-    length(SRules,N),
-    !,    
-    % if no rule has been removed, than disjoint and general coincide
-    % no output is produced
-    write('WARNING: disjoint ABALP is general -- skip '), nl.    
-%    
-generate_dislp_aux(DISLPFileName,Facts,_Rules,SRules,Contr, SRulesL) :-
+    write('WARNING: disjoint ABALP is tabular -- skip ').      
+%   
+generate_dislp_aux(_PREDFileName,DISLPFileName,SFacts,_Rules,SRules,Contr, DISLPFileName) :-
     tell(DISLPFileName),
-    print_abaf(Facts,SRules,Contr),
+    print_abaf(SFacts,SRules,Contr),
     told,
     read_abaf(DISLPFileName, DISLPABAF),
     satisfiable(DISLPABAF),
     !,
     write('disjoint ABALP: '), nl,
+    write('  Facts:   '), length(SFacts,SFactsL), write(SFactsL), nl,
     write('  Rules:   '), length(SRules,SRulesL), write(SRulesL), nl.
 %
-generate_dislp_aux(DISLPFileName,_Facts,_Rules,_SRules,_Contr, 'unsat') :-
-    delete_file(DISLPFileName).
+generate_dislp_aux(PREDFileName,DISLPFileName,_SFacts,_Rules,_SRules,_Contr, _DISLPFileName) :-
+    write('disjoint ABALP unsat.'), nl,
+    delete_file(PREDFileName),
+    delete_file(DISLPFileName),
+    fail.
+
+% generate general learning problem BK
+generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsLength,DisSRulesLength, GFacts,GENRES) :-
+    length(Facts,FactsLength), FTBR is FactsLength-DisSFactsLength,
+    length(Rules,RulesLength), RTBR is RulesLength-DisSRulesLength,
+    rnd_select_lst(FTBR,Facts,_SFacts,GFacts),
+    rnd_select_lst(RTBR,Rules,_SRules,GRules),
+    tell(GENLPFileName),
+    print_abaf(GFacts,GRules,Contr),
+    told,
+    read_abaf(GENLPFileName, GENLPABAF), 
+    ( satisfiable(GENLPABAF) ->
+      GENRES = GENLPFileName
+    ;
+      ( delete_file(GENLPFileName), GENRES='unsat' )
+    ).
 
 %
 select_learnable_pred(Rules,LPreds) :-
@@ -623,7 +666,7 @@ append_csv_data(File, Rows) :-
           % write header row
           csv_write_stream(Out, [row('TestCase','Mode','Predict','#BK','#Ex','#Facts','#Rules','#Preds','#Const','#Learn',
                                      '#Ep','#En',
-                                     'GenLP','#Rules','DisLP','#Rules','TabLP')], [])
+                                     'DisLP','#Facts','#Rules','TabLP','GenLP')], [])
           ;   
             true
         ), 
@@ -633,33 +676,17 @@ append_csv_data(File, Rows) :-
         close(Out)
     ).
 
-% generate a test cases of size BKsize with E examples each for mode M
+%%%
 tcgen(M,BKsize,E) :-
   try(50,export_predictor_abalpb(M,BKsize,E)),
   !.
 tcgen(M,BKsize,E) :-
   write('WARNING: '), write(tcgen(M,BKsize,E)), write('failed 50 times!'), nl.
 
-% generate N test cases
+
 tcgen(0,_M,_BKsize,_E).
 tcgen(N,M,BKsize,E) :-
   N>=1,
   N1 is N-1,
   tcgen(M,BKsize,E),
   tcgen(N1,M,BKsize,E).
-
-% generate a test cases of size BKsize with E examples each for mode M
-tcgen_rnd(M,BKsizeMin,BKsizeMax,E) :-
-  random_between(BKsizeMin,BKsizeMax,BKsize),
-  try(50,export_predictor_abalpb(M,BKsize,E)),
-  !.
-tcgen_rnd(M,BKsizeMin,BKsizeMax,E) :-
-  write('WARNING: '), write(tcgen(M,BKsizeMin,BKsizeMax,E)), write('failed 50 times!'), nl.
-
-% generate N test cases
-tcgen(0,_M,_BKsizeMin,_BKsizeMax,_E).
-tcgen(N,M,BKsizeMin,BKsizeMax,E) :-
-  N>=1,
-  N1 is N-1,
-  tcgen_rnd(M,BKsizeMin,BKsizeMax,E),
-  tcgen(N1,M,BKsizeMin,BKsizeMax,E).  
