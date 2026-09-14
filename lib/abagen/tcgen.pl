@@ -216,8 +216,8 @@ generate_examples(DisFacts,GenFacts,E,Ep,En,_PREDFileName,_GENLPFileName,_DISLPF
     constants_in(GenFacts,Const2), sort(Const2,SConst2),
     intersection(SConst1,SConst2,Const),
     H is div(E,2),
-    rnd_select_lst_chk(H,Ep,Const, SEp),
-    rnd_select_lst_chk(H,En,Const, SEn),
+    rnd_select_lst_chk(H,Ep,Const,[], SEp),
+    rnd_select_lst_chk(H,En,Const,[], SEn),
     !.
 % can't select examples, remove intermediate result    
 generate_examples(_DisFacts,_GenFacts,_E,_Ep,_En,PREDFileName,GENLPFileName,DISLPFileName,TABLPFileName, [],[]) :-
@@ -320,13 +320,13 @@ rnd_select_lst(N,L,[E|Ex]) :-
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex).
 %
-rnd_select_lst_chk(0,_L,_Const,[]).
-rnd_select_lst_chk(N,L,Const,[E|Ex]) :-
+rnd_select_lst_chk(0,_L,_Const,EOut, EOut).
+rnd_select_lst_chk(N,L,Const,EIn, EOut) :-
     N>=1,
     random_select(E,L,L1),
     arg(1,E,C),
-    ( memberchk(C,Const) -> N1 is N-1 ; N1 = N ),
-    rnd_select_lst_chk(N1,L1,Const,Ex).    
+    ( memberchk(C,Const) -> (N1 is N-1, EIn1=[E|EIn]) ; (N1 = N, EIn1=EIn) ),
+    rnd_select_lst_chk(N1,L1,Const,EIn1, EOut).    
 
 %
 rnd_select_lst(0,R,[],R).
