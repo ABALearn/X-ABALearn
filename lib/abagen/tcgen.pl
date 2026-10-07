@@ -336,16 +336,24 @@ rnd_select_lst(N,L,[E|Ex],R) :-
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex,R).    
 
-
+%
 rem_pred_rules([],_,[]).
 rem_pred_rules([R|Rs],ExPred,Rs1) :-
-    R=(H,_),
-    functor(H,F,1),
-    member(F/1,ExPred), 
+    R=(H,B),
+    pred_in([H|B],ExPred), 
     !,
     rem_pred_rules(Rs,ExPred,Rs1).
 rem_pred_rules([R|Rs],ExPred,[R|Rs1]) :-
     rem_pred_rules(Rs,ExPred,Rs1).
+
+%
+pred_in([E|_],ExPred) :-
+    functor(E,F,1),
+    member(F/1,ExPred),
+    !.
+pred_in([_|Es],ExPred) :-
+    pred_in(Es,ExPred).
+
 
 % generate_abalpb(P,C,A,F,R,Ep,En,L,Facts,Rules,Asm,Contr,Pex,Nex)
 % P # unary predicates
