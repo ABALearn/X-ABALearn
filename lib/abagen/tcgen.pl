@@ -171,19 +171,21 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     candidate_ex(T,Univ,Cex),
     rnd_select_ex(E,Cex,Ex,_Rest).
 
-arclaims_from_extensions_file(M,ABAFPREDBaseFileName,PredwArity,Univ, Ep,En) :-
+arclaims_from_extensions_file(M,ABAFPREDBaseFileName,PredwArity,Univ, S,Ep,En) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
     !,
-    arclaims_from_extensions(M,ABAF,PredwArity,Univ, PEp,PEn),
+    arclaims_from_extensions(M,ABAF,PredwArity,Univ, S,PEp,PEn),
     generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En).
 
 %
-arclaims_from_extensions(x,ABAF,PredwArity,Univ, Ep,En) :-
-    extension(ABAF,PredwArity, S),
+arclaims_from_extensions(x,ABAF,PredwArity,Univ, S,Ep,En) :-
+    %extension(ABAF,PredwArity, S),
+    extension(ABAF,[], S),
     arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
-arclaims_from_extensions(a,ABAF,PredwArity,Univ, Ep,En) :-
-    abaf_consequences(ABAF,PredwArity, C,B),
+arclaims_from_extensions(a,ABAF,PredwArity,Univ, C,Ep,En) :-
+    %abaf_consequences(ABAF,PredwArity, C,B),
+    abaf_consequences(ABAF,[], C,B),
     arclaims_from_extensions_aux(C,B,PredwArity,Univ, Ep,En).
     
 % S is a list
@@ -493,7 +495,7 @@ export_predictor_abalpb(M,BKsize,E) :-
     % Examples are generated from extensions
     % Hence, constants occurring in examples occur in facts as well
     % LearnPred is a subset of the predicates of Rules
-    ( arclaims_from_extensions_file(M,PREDFileName,LearnPred,Univ, Ep,En) -> 
+    ( arclaims_from_extensions_file(M,PREDFileName,LearnPred,Univ, S,Ep,En) -> 
       true 
     ; 
       ( delete_file(PREDFileName), fail ) 
@@ -503,9 +505,7 @@ export_predictor_abalpb(M,BKsize,E) :-
     generate_dislp(PREDFileName,DISLPFileName,Facts,Rules,Contr,LearnPred, DisSFacts,_DisSRules,DisSFactsL,DisSRulesL,DISRES), 
     %%% TAB_ABALPB - remove all facts whose predicates occurs among learnable predicates
     tablp_filename(BaseFileName,TABLPFileName),
-    tell(TABLPFileName),    
-    print_abaf(DisSFacts,[],[]),
-    told,
+    generate_tablp(TABLPFileName,LearnPred,S),
     %%% ABALPB - remove randomly facts and rules 
     genlp_filename(BaseFileName,GENLPFileName),
     generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsL,DisSRulesL, GenSFacts,GENRES),
@@ -610,6 +610,26 @@ generate_dislp_aux(PREDFileName,DISLPFileName,_SFacts,_Rules,_SRules,_Contr, _DI
     delete_file(PREDFileName),
     delete_file(DISLPFileName),
     fail.
+
+% generate tabular learning problem BK    
+generate_tablp(TABLPFileName,LearnPred, S) :- 
+    atoms2facts(S,Facts),
+    rem_pred_rules(Facts,[dom/1|LearnPred], SFacts),
+    tell(TABLPFileName),    
+    print_abaf(SFacts,[],[]),
+    told.
+
+atoms2facts([],[]).
+atoms2facts([A|As],[R|Rs]) :-
+    A =..[P|Args],
+    args2Eqs(Args, Eqs,Vs),
+    H =..[P|Vs],
+    R = (H,Eqs),
+    atoms2facts(As,Rs).
+%
+args2Eqs([], [],[]).
+args2Eqs([A|As], [A=V|Eqs],[V|Vs]) :-
+    args2Eqs(As, Eqs,Vs).
 
 % generate general learning problem BK
 generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsLength,DisSRulesLength, GFacts,GENRES) :-
