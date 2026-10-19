@@ -338,7 +338,10 @@ rnd_select_lst(N,L,[E|Ex],R) :-
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex,R).    
 
-%
+% rem_pred_rules(+Rs, +ExPred, -RsO)
+% RsO is obtained from Rs by removing every rule whose head predicate
+% occurs in ExPred and every rule whose body contains at least one
+% atom whose predicate occurs in ExPred.
 rem_pred_rules([],_,[]).
 rem_pred_rules([R|Rs],ExPred,Rs1) :-
     R=(H,B),
@@ -587,12 +590,12 @@ generate_dislp(PREDFileName,DISLPFileName,Facts,Rules,Contr,LearnPred, SFacts,SR
     rem_pred_rules(Rules,LearnPred,SRules), length(SRules,SRulesL),
     generate_dislp_aux(PREDFileName,DISLPFileName,SFacts,Rules,SRules,Contr,DISRES). 
 %
-generate_dislp_aux(_PREDFileName,_DISLPFileName,_SFacts,_Rules,SRules,_Contr, 'tab') :-
+generate_dislp_aux(_PREDFileName,_DISLPFileName,_SFacts,_Rules,SRules,_Contr, 'norules') :-
     SRules == [],
     !,
     % if all rules have been removed, than disjoint and tabular coincide
     % no output is produced
-    write('WARNING: disjoint ABALP is tabular -- skip ').      
+    write('WARNING: disjoint ABALP has no rules').      
 %   
 generate_dislp_aux(_PREDFileName,DISLPFileName,SFacts,_Rules,SRules,Contr, DISLPFileName) :-
     tell(DISLPFileName),
