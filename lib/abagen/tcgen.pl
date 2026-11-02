@@ -338,12 +338,36 @@ rnd_select_lst(N,L,[E|Ex],R) :-
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex,R).
 
+%
+rnd_delete_lst(0,Fs,Rs, Fs,Rs) :- 
+    !.
+rnd_delete_lst(N,Fs,Rs, SFs,SRs) :-
+    N>=1,
+    N1 is N-1,
+    random_permutation([fact,rule], Order), % coin flip with fallback
+    member(Kind, Order),
+    delete_one(Kind, Fs, Rs, Fs1,Rs1),
+    !,
+    rnd_delete_lst(N1,Fs1,Rs1, SFs,SRs).
+% delete a fact whose constant still occurs in the remaining facts
+delete_one(fact,Fs,Rs, RFs,Rs) :-
+    random_permutation(Fs, Perm),
+    member(E, Perm),
+    E = (_, _=C),
+    selectchk(E,Fs, RFs),
+    constants_in(RFs, Cs),
+    memberchk(C, Cs),
+    !.
+% delete a random rule
+delete_one(rule,Fs,Rs, Fs,RRs) :-
+    random_select(_,Rs, RRs).     
+
 % rem_hdpred_rules(+Rs, +ExPred, -RsO)
 % RsO is obtained from Rs by removing every rule whose head predicate
 % occurs in ExPred.
 rem_hdpred_rules([],_,[]).
 rem_hdpred_rules([R|Rs],ExPred,Rs1) :-
-    R=(H,B),
+    R=(H,_),
     pred_in([H],ExPred), 
     !,
     rem_hdpred_rules(Rs,ExPred,Rs1).
@@ -507,7 +531,8 @@ export_predictor_abalpb(M,BKsize,E) :-
     told,
     write('ABA Learning problem written on file '), write(PREDFileName), nl,
     %%%
-    select_learnable_pred(Rules,1, LearnPred), % 1 learnable predicate
+    % select learnable predicates among predicates different from assumptions
+    select_learnable_pred(Pred,Contr, LearnPred), 
     % Examples are generated from extensions
     % Hence, constants occurring in examples occur in facts as well
     % LearnPred is a subset of the predicates of Rules
@@ -524,9 +549,10 @@ export_predictor_abalpb(M,BKsize,E) :-
     generate_dislp(PREDFileName,DISLPFileName,Facts,Rules,Contr,LearnPred, DisSFacts,_DisSRules,DisSFactsL,DisSRulesL,DISRES), 
     %%% ABALPB - remove randomly facts and rules 
     genlp_filename(BaseFileName,GENLPFileName),
-    generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsL,DisSRulesL, GenSFacts,GENRES),
+    generate_genlp(GENLPFileName,Facts,Rules,Contr, GENRES),
     %%%
-    generate_examples(DisSFacts,GenSFacts,E,Ep,En,PREDFileName,GENLPFileName,DISLPFileName,TABLPFileName, SEp,SEn),
+    % TBU
+    generate_examples(DisSFacts,E,Ep,En,PREDFileName,GENLPFileName,DISLPFileName,TABLPFileName, SEp,SEn),
     %%% 5fCV
     random_five_fold(SEp, EpRP),
     random_five_fold(SEn, EnRP),
@@ -648,13 +674,15 @@ args2Eqs([A|As], [A=V|Eqs],[V|Vs]) :-
     args2Eqs(As, Eqs,Vs).
 
 % generate general learning problem BK
-generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsLength,DisSRulesLength, GFacts,GENRES) :-
-    length(Facts,FactsLength), FTBR is FactsLength-DisSFactsLength,
-    length(Rules,RulesLength), RTBR is RulesLength-DisSRulesLength,
-    rnd_select_lst(FTBR,Facts,_SFacts,GFacts),
-    rnd_select_lst(RTBR,Rules,_SRules,GRules),
+generate_genlp(GENLPFileName,Facts,Rules,Contr, GENRES) :-
+    length(Facts,FactsLength),
+    length(Rules,RulesLength),
+    BKLength is FactsLength + RulesLength,
+    random_between(50,80, P),
+    TBD is round(BKLength * P/100),
+    rnd_delete_lst(TBD,Facts,Rules, SFacts,SRules),
     tell(GENLPFileName),
-    print_abaf(GFacts,GRules,Contr),
+    print_abaf(SFacts,SRules,Contr),
     told,
     read_abaf(GENLPFileName, GENLPABAF), 
     ( satisfiable(GENLPABAF) ->
@@ -664,17 +692,11 @@ generate_genlp(GENLPFileName,Facts,Rules,Contr,DisSFactsLength,DisSRulesLength, 
     ).
 
 %
-select_learnable_pred(Rules,TBL, LPreds) :-
-    findall(P/1,(member((H,_),Rules),functor(H,P,1)),Preds),
-    sort(Preds,SPreds),
-    n_random_select(TBL,SPreds,LPreds).
-%
-select_learnable_pred(Rules, LPreds) :-
-    findall(P/1,(member((H,_),Rules),functor(H,P,1)),Preds),
-    sort(Preds,SPreds),
+select_learnable_pred(Preds,Contr, LPreds) :-
+    append(Preds,Contr, All),
+    sort(All,SPreds),
     length(SPreds,NPreds),
-    Nmax is min(NPreds,10),
-    random_between(1,Nmax,TBL),    
+    random_between(1,NPreds,TBL),    
     n_random_select(TBL,SPreds,LPreds).
 
 %
