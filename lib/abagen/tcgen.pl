@@ -336,28 +336,49 @@ rnd_select_lst(N,L,[E|Ex],R) :-
     rnd_select_lst(N1,L1,Ex,R).
 
 %
-rnd_delete_lst(0,Fs,Rs, Fs,Rs) :- 
+rnd_delete_lst(0,Fs,Rs, Fs,Rs) :-
     !.
-rnd_delete_lst(N,Fs,Rs, SFs,SRs) :-
-    N>=1,
-    N1 is N-1,
-    random_permutation([fact,rule], Order), % coin flip with fallback
-    member(Kind, Order),
-    delete_one(Kind,Fs,Rs, Fs1,Rs1),
+% no rules left: facts only
+rnd_delete_lst(N,Fs,[], SFs,[]) :-
     !,
-    rnd_delete_lst(N1,Fs1,Rs1, SFs,SRs).
-% delete a fact whose constant still occurs in the remaining facts
-delete_one(fact,Fs,Rs, RFs,Rs) :-
-    random_permutation(Fs, Perm),
-    member(E, Perm),
-    E = (_, _=C),
-    select(E,Fs, RFs),
-    constants_in(RFs, Cs),
-    memberchk(C, Cs),
+    facts_only(N,Fs, SFs).
+rnd_delete_lst(N,Fs,Rs, SFs,SRs) :-
+    N1 is N-1,
+    ( maybe % coin flip
+    ->  ( delete_fact(Fs, Fs1)
+        -> rnd_delete_lst(N1,Fs1,Rs, SFs,SRs)
+        ;  ( SFs = Fs, % facts can't be deleted
+             rules_only(N,Rs, SRs) % take the rest from rules
+           )
+        )
+    ;   ( random_select(_,Rs,Rs1),
+          rnd_delete_lst(N1,Fs,Rs1, SFs,SRs)
+        )
+    ).
+%
+facts_only(0,Fs, Fs) :-
     !.
-% delete a random rule
-delete_one(rule,Fs,Rs, Fs,RRs) :-
-    random_select(_,Rs, RRs).     
+facts_only(N,Fs, SFs) :-
+    delete_fact(Fs, Fs1),
+    !,
+    N1 is N-1,
+    facts_only(N1,Fs1, SFs).
+facts_only(_,Fs, Fs). % nothing more deletable
+
+rules_only(N,Rs, SRs) :-                       % delete min(N,|Rs|) random rules
+    length(Rs, L),
+    K is min(N,L),
+    random_permutation(Rs, Perm),
+    length(Del,K),
+    append(Del,SRs,Perm).
+
+delete_fact(Fs, RFs) :-
+    random_permutation(Fs, Perm),
+    select(E,Perm,RFs),
+    E = (_,_=C),
+    constants_in(RFs, Cs),
+    memberchk(C,Cs),
+    !.
 
 % rem_hdpred_rules(+Rs, +ExPred, -RsO)
 % RsO is obtained from Rs by removing every rule whose head predicate
