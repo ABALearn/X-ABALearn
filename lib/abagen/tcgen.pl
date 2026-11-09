@@ -171,12 +171,12 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     candidate_ex(T,Univ,Cex),
     rnd_select_ex(E,Cex,Ex,_Rest).
 
-arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Type,Preds,Univ,Exsize, S,SEp,SEn) :-
+arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Type,Preds,Cs,Exsize, S,SEp,SEn) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
     !,
     findall(F/1,member(F,Preds),PredwArity),
-    arclaims_from_extensions(M,ABAF,Type,PredwArity,Univ, S,PEp,PEn),
+    arclaims_from_extensions(M,ABAF,Type,PredwArity,Cs, S,PEp,PEn),
     generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En),
     %%% select examples 
     H is div(Exsize,2),
@@ -184,35 +184,35 @@ arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Type,Preds,Univ,Exsize, S,S
     rnd_select_lst(H,En, SEn).    
 
 %
-arclaims_from_extensions(x,ABAF,Type,PredwArity,Univ, S,Ep,En) :-
+arclaims_from_extensions(x,ABAF,Type,PredwArity,Cs, S,Ep,En) :-
     Type=tabular,
     !,
     extension(ABAF,[], S),
-    arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).
-arclaims_from_extensions(x,ABAF,_Type,PredwArity,Univ, S,Ep,En) :-
+    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).
+arclaims_from_extensions(x,ABAF,_Type,PredwArity,Cs, S,Ep,En) :-
     extension(ABAF,PredwArity, S),
-    arclaims_from_extension_aux(S,PredwArity,Univ, Ep,En).    
-arclaims_from_extensions(a,ABAF,Type,PredwArity,Univ, C,Ep,En) :-
+    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).    
+arclaims_from_extensions(a,ABAF,Type,PredwArity,Cs, C,Ep,En) :-
     Type=tabular,
     !,
     abaf_consequences(ABAF,[], C,B),
-    arclaims_from_extensions_aux(C,B,PredwArity,Univ, Ep,En).
-arclaims_from_extensions(a,ABAF,_Type,PredwArity,Univ, C,Ep,En) :-
+    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).
+arclaims_from_extensions(a,ABAF,_Type,PredwArity,Cs, C,Ep,En) :-
     abaf_consequences(ABAF,PredwArity, C,B),
-    arclaims_from_extensions_aux(C,B,PredwArity,Univ, Ep,En).    
+    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).    
     
 % S is a list
-arclaims_from_extension_aux(_S,[],_Univ, [],[]).
-arclaims_from_extension_aux(S,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
+arclaims_from_extension_aux(_S,[],_Cs, [],[]).
+arclaims_from_extension_aux(S,[P/N|Preds],Cs, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
     findall(Pos,(member(Pos,S),functor(Pos,P,N)),Ep),
-    findall(Neg,(member(C,Univ),Neg=..[P,C],\+member(Neg,Ep)),En),
-    arclaims_from_extension_aux(S,Preds,Univ, Eps,Ens).
+    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,S)),En),
+    arclaims_from_extension_aux(S,Preds,Cs, Eps,Ens).
 % S is a list of list
-arclaims_from_extensions_aux(_C,_B,[],_Univ, [],[]).
-arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Univ, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
+arclaims_from_extensions_aux(_C,_B,[],_Cs, [],[]).
+arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Cs, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
     findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep),
-    findall(Neg,(member(C,Univ),Neg=..[P,C],\+member(Neg,Brave)),En),
-    arclaims_from_extensions_aux(Cautious,Brave,Preds,Univ, Eps,Ens).    
+    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,Brave)),En),
+    arclaims_from_extensions_aux(Cautious,Brave,Preds,Cs, Eps,Ens).    
 
 nonmember(E,L) :-
     memberchk(E,L), % assuming E ground
@@ -312,20 +312,13 @@ not_in_facts([Ex|Exs],Facts,[Ex|CNex]) :-
 not_in_facts([_Ex|Exs],Facts,CNex) :- 
     not_in_facts(Exs,Facts,CNex).
 
+%
 rnd_select_lst(0,_,[]).
 rnd_select_lst(N,L,[E|Ex]) :-
     N>=1,
     N1 is N-1,
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex).
-%
-rnd_select_lst_chk(0,_L,_Const,EOut, EOut).
-rnd_select_lst_chk(N,L,Const,EIn, EOut) :-
-    N>=1,
-    random_select(E,L,L1),
-    arg(1,E,C),
-    ( memberchk(C,Const) -> (N1 is N-1, EIn1=[E|EIn]) ; (N1 = N, EIn1=EIn) ),
-    rnd_select_lst_chk(N1,L1,Const,EIn1, EOut).    
 
 %
 rnd_select_lst(0,R,[],R).
@@ -335,50 +328,15 @@ rnd_select_lst(N,L,[E|Ex],R) :-
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex,R).
 
-%
-rnd_delete_lst(0,Fs,Rs, Fs,Rs) :-
+% rnd_delete_lst(+N,+Rs, -SRs)
+% SRs is obtained from Rs by randomly removing N elements.
+% Fails if Rs has fewer than N elements.
+rnd_delete_lst(0,Rs, Rs) :-
     !.
-% no rules left: facts only
-rnd_delete_lst(N,Fs,[], SFs,[]) :-
-    !,
-    facts_only(N,Fs, SFs).
-rnd_delete_lst(N,Fs,Rs, SFs,SRs) :-
+rnd_delete_lst(N,Rs, SRs) :-
     N1 is N-1,
-    ( maybe % coin flip
-    ->  ( delete_fact(Fs, Fs1)
-        -> rnd_delete_lst(N1,Fs1,Rs, SFs,SRs)
-        ;  ( SFs = Fs, % facts can't be deleted
-             rules_only(N,Rs, SRs) % take the rest from rules
-           )
-        )
-    ;   ( random_select(_,Rs,Rs1),
-          rnd_delete_lst(N1,Fs,Rs1, SFs,SRs)
-        )
-    ).
-%
-facts_only(0,Fs, Fs) :-
-    !.
-facts_only(N,Fs, SFs) :-
-    delete_fact(Fs, Fs1),
-    !,
-    N1 is N-1,
-    facts_only(N1,Fs1, SFs).
-facts_only(_,Fs, Fs). % nothing more deletable
-
-rules_only(N,Rs, SRs) :-                       % delete min(N,|Rs|) random rules
-    length(Rs, L),
-    K is min(N,L),
-    random_permutation(Rs, Perm),
-    length(Del,K),
-    append(Del,SRs,Perm).
-
-delete_fact(Fs, RFs) :-
-    random_permutation(Fs, Perm),
-    select(E,Perm,RFs),
-    E = (_,_=C),
-    constants_in(RFs, Cs),
-    memberchk(C,Cs),
-    !.
+    random_select(_,Rs,Rs1),
+    rnd_delete_lst(N1,Rs1, SRs).
 
 % rem_hdpred_rules(+Rs, +ExPred, -RsO)
 % RsO is obtained from Rs by removing every rule whose head predicate
@@ -549,9 +507,13 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     told,
     write('ABA Learning problem written on file '), write(ORACLEFileName), nl,
     % LearnPred is a subset of the predicates different from assumptions
-    select_learnable_pred(Pred,Contr, LearnPred),
+    length(Pred,NPred),
+    random_between(1,NPred,TBL),
+    TBL1 is min(30,TBL),    
+    n_random_select(TBL1,Pred,LearnPred),
     % Examples are generated from extensions
-    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Type,LearnPred,Univ,Exsize, S,Ep,En) -> 
+    constants_in(Facts, Cs),
+    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Type,LearnPred,Cs,Exsize, S,Ep,En) -> 
       true 
     ; 
       ( delete_file(ORACLEFileName), fail ) 
@@ -632,14 +594,13 @@ tablp_filename(BaseFileName,TABLPFileName) :-
 
 %%%
 % generate constrained learning problem
-export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, CNSLPFileName,SFacts,SRules) :-
+export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, CNSLPFileName,Facts,SRules) :-
     Type = constrained,
     !,
     cnslp_filename(BaseFileName,CNSLPFileName),
-    rem_hdpred_rules(Facts,LearnPred,SFacts),
     rem_hdpred_rules(Rules,LearnPred,SRules),
     tell(CNSLPFileName),
-    print_abaf(SFacts,SRules,Contr),
+    print_abaf(Facts,SRules,Contr),
     told,
     read_abaf(CNSLPFileName, CNSLPABAF),
     ( satisfiable(CNSLPABAF) -> 
@@ -654,14 +615,13 @@ export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, CNSLPFileName,SF
 
 %%%
 % generate disjont learning problem
-export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, DISLPFileName,SFacts,SRules) :-
+export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, DISLPFileName,Facts,SRules) :-
     Type = disjoint,
     !,
     dislp_filename(BaseFileName,DISLPFileName),
-    rem_pred_rules(Facts,LearnPred,SFacts),
     rem_pred_rules(Rules,LearnPred,SRules),
     tell(DISLPFileName),
-    print_abaf(SFacts,SRules,Contr),
+    print_abaf(Facts,SRules,Contr),
     told,
     read_abaf(DISLPFileName, DISLPABAF),
     ( satisfiable(DISLPABAF) -> 
@@ -676,18 +636,16 @@ export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,LearnPred, DISLPFileName,SF
 
 %%%
 % generate and export a general learning problem
-export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,_LearnPred, GENLPFileName,SFacts,SRules) :-
+export_abalpb(Type,BaseFileName,_S,Facts,Rules,Contr,_LearnPred, GENLPFileName,Facts,SRules) :-
     Type = general,
     !,
     genlp_filename(BaseFileName,GENLPFileName),
-    length(Facts,FactsLength),
     length(Rules,RulesLength),
-    BKLength is FactsLength + RulesLength,
-    random_between(10,40, P),
-    TBD is round(BKLength * P/100),
-    rnd_delete_lst(TBD,Facts,Rules, SFacts,SRules),
+    random_between(20,50, P),
+    TBD is round(RulesLength * P/100),
+    rnd_delete_lst(TBD,Rules, SRules),
     tell(GENLPFileName),
-    print_abaf(SFacts,SRules,Contr),
+    print_abaf(Facts,SRules,Contr),
     told,
     read_abaf(GENLPFileName, GENLPABAF), 
     ( satisfiable(GENLPABAF) ->
