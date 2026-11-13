@@ -171,19 +171,31 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     candidate_ex(T,Univ,Cex),
     rnd_select_ex(E,Cex,Ex,_Rest).
 
-arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Type,Preds,Cs,Exsize, S,SEp,SEn) :-
+%
+arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,LearnPred,SEp,SEn) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
+    findall(F/1,member(F,Pred),PredwArity),
     !,
-    findall(F/1,member(F,Preds),PredwArity),
-    arclaims_from_extensions(M,ABAF,Type,PredwArity,Cs, S,PEp,PEn),
-    generate_ex_from_claims(PEp,PEn,PredwArity, Ep,En),
-    %%% select examples 
-    H is div(Exsize,2),
-    rnd_select_lst(H,Ep, SEp),
-    rnd_select_lst(H,En, SEn).    
+    arclaims_from_extensions(M,ABAF,Cs,PredwArity, S,PEp,PEn),
+    %%% select examples
+    random_between(30,60, P),
+    Exsize1 is Exsize - 5,
+    PosSize is round(Exsize1 * P/100) + 5,
+    NegSize is Exsize - PosSize,
+    generate_ex_from_claims(PEp,PEn,NPred,PosSize,NegSize, LearnPred,Ep,En),
+    rnd_select_lst(PosSize,Ep, SEp),
+    rnd_select_lst(NegSize,En, SEn).   
 
-%
+% arclaims_from_extensions/7
+arclaims_from_extensions(x,ABAF,Cs,PredwArity, S,Ep,En) :-
+    extension(ABAF,PredwArity, S),
+    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).
+arclaims_from_extensions(a,ABAF,Cs,PredwArity, C,Ep,En) :-
+    abaf_consequences(ABAF,PredwArity, C,B),
+    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).
+
+% arclaims_from_extensions/8
 arclaims_from_extensions(x,ABAF,Type,PredwArity,Cs, S,Ep,En) :-
     Type=tabular,
     !,
@@ -203,15 +215,15 @@ arclaims_from_extensions(a,ABAF,_Type,PredwArity,Cs, C,Ep,En) :-
     
 % S is a list
 arclaims_from_extension_aux(_S,[],_Cs, [],[]).
-arclaims_from_extension_aux(S,[P/N|Preds],Cs, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
-    findall(Pos,(member(Pos,S),functor(Pos,P,N)),Ep),
-    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,S)),En),
+arclaims_from_extension_aux(S,[P/N|Preds],Cs, [(P/N,Ep,EpL)|Eps],[(P/N,En,EnL)|Ens]) :-
+    findall(Pos,(member(Pos,S),functor(Pos,P,N)),Ep), length(Ep,EpL), 
+    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,S)),En), length(En,EnL), 
     arclaims_from_extension_aux(S,Preds,Cs, Eps,Ens).
 % S is a list of list
 arclaims_from_extensions_aux(_C,_B,[],_Cs, [],[]).
-arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Cs, [(P/N,Ep)|Eps],[(P/N,En)|Ens]) :-
-    findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep),
-    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,Brave)),En),
+arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Cs, [(P/N,Ep,EpL)|Eps],[(P/N,En,EnL)|Ens]) :-
+    findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep), length(Ep,EpL), 
+    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,Brave)),En), length(En,EnL), 
     arclaims_from_extensions_aux(Cautious,Brave,Preds,Cs, Eps,Ens).    
 
 nonmember(E,L) :-
@@ -221,10 +233,54 @@ nonmember(E,L) :-
 nonmember(_,_).
 
 %
-generate_ex_from_claims(Acc,Rej,Preds, FEp,FEn) :-
-    findall(Ep,(member(P,Preds),member((P,Ep),Acc)),EpL), flatten(EpL,FEp), FEp \= [],
-    findall(En,(member(P,Preds),member((P,En),Rej)),EnL), flatten(EnL,FEn), FEn \= [].
+generate_ex_from_claims(Acc,Rej,NPred,PosSize,NegSize, Ps,FLs1,FLs2) :-
+    rnd_select_k(Acc,NPred,PosSize, Ps,Ls1),
+    select_cs(Rej,Ps, Ls2,S2),
+    S2 >= NegSize,
+    flatten(Ls1,FLs1),
+    flatten(Ls2,FLs2).
 
+
+% rnd_select_k(+Ts,+K,+M, -Ps,-Ls)
+% Ts is a list of triples (P,L,N), where N is the length of L.
+% Ps and Ls are the P and the L of K triples selected from Ts,
+% such that the sum of the selected N is at least M.
+% On backtracking, all such selections are enumerated in random order;
+% fails if no (further) selection exists.
+rnd_select_k(Ts,K,M, Ps,Ls) :-
+    random_permutation(Ts, Perm),
+    select_k(K,Perm,M, Ps,Ls).
+
+% select_k(+K,+Ts,+M, -Ps,-Ls)
+% Ps and Ls are the P and the L of K triples taken from Ts (in order)
+% whose N sum to at least M
+% (enumerated on backtracking, by chronological backtracking)
+select_k(0,_,M, [],[]) :-
+    !,
+    M =< 0.
+select_k(K,[(P,L,N)|Ts],M, [P|Ps],[L|Ls]) :-
+    K1 is K-1,
+    M1 is M-N,
+    select_k(K1,Ts,M1, Ps,Ls).
+select_k(K,[_|Ts],M, Ps,Ls) :-
+    select_k(K,Ts,M, Ps,Ls).
+
+% select_cs(+Ts,+Cs, -Ls,-S)
+% Ts is a list of triples (P,L,N); Cs is a list of constants.
+% Ls are the L of the triples in Ts whose P occurs in Cs
+% (in the order of Ts); S is the sum of the corresponding N.
+select_cs(Ts,Cs, Ls,S) :-
+    select_cs(Ts,Cs,0, Ls,S).
+
+select_cs([],_,S, [],S).
+select_cs([(P,L,N)|Ts],Cs,S0, [L|Ls],S) :-
+    memberchk(P,Cs),
+    !,
+    S1 is S0+N,
+    select_cs(Ts,Cs,S1, Ls,S).
+select_cs([_|Ts],Cs,S0, Ls,S) :-
+    select_cs(Ts,Cs,S0, Ls,S).    
+    
 %
 abaf_consequences(ABAF,Ps, C,B) :-
   % for each P/N in Ps, add a show directive
@@ -505,19 +561,30 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     tell(ORACLEFileName),
     print_abaf(Facts,Rules,Contr),
     told,
-    write('ABA Learning problem written on file '), write(ORACLEFileName), nl,
     % LearnPred is a subset of the predicates different from assumptions
-    length(Pred,NPred),
-    random_between(1,NPred,TBL),
-    TBL1 is min(30,TBL),    
-    n_random_select(TBL1,Pred,LearnPred),
+    ( Type == tabular 
+    ->  NPred = 1
+    ;   (  length(Pred,NPred),
+           random_between(1,NPred,TBL),
+           NPred = TBL % TBL1 is min(30,TBL),    
+        )
+    ),
     % Examples are generated from extensions
     constants_in(Facts, Cs),
-    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Type,LearnPred,Cs,Exsize, S,Ep,En) -> 
+    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Pred,Cs,NPred,Exsize, S,LearnPred,Ep,En) -> 
       true 
     ; 
       ( delete_file(ORACLEFileName), fail ) 
     ),
+    write('oracle: '), write(ORACLEFileName), nl,
+    write('  BK size: '), write(BKsize), nl, 
+    write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
+    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,   
+    write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
+    write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,
+    write('  Asms.:   '), length(Asms,AsmsL), write(AsmsL), nl,
+    write('  Cont.:   '), length(Contr,ContrL), write(ContrL), nl,
+    write('  Learn.:  '), write(NPred), write(' '), write(LearnPred), nl,          
     %%% generate an ABAF learning problem of type Type  
     export_abalpb(Type,BaseFileName,S,Facts,Rules,Contr,LearnPred, ABALPBFileName,SFacts,SRules),
     !,
@@ -532,15 +599,6 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     write_5fcv(1,EpRP,EnRP),
     told,
     %%%
-    write('oracle: '), nl,
-    write('  BK size: '), write(BKsize), nl, 
-    write('  Facts:   '), length(Facts,FactsL), write(FactsL), nl,
-    write('  Rules:   '), length(Rules,RulesL), write(RulesL), nl,   
-    write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
-    write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,
-    write('  Asms.:   '), length(Asms,AsmsL), write(AsmsL), nl,
-    write('  Cont.:   '), length(Contr,ContrL), write(ContrL), nl,
-    write('  Learn.:  '), length(LearnPred,LearnPredL), write(LearnPredL), write(' '), write(LearnPred), nl,
     write('abalpb: '), nl,
     write('  Mode: '), write(Mode), nl,
     write('  Facts:   '), length(SFacts,SFactsL), write(SFactsL), nl,
@@ -551,7 +609,7 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     %term_to_atom(LearnPred,NormLearnPredAtom),
     %term_string(FileName,FileNameS),    
     append_csv_data('tcgen.csv', 
-        [row(ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,LearnPredL,Mode,
+        [row(ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,NPred,Mode,
              ABALPBFileName,SFactsL,SRulesL,EpL,EnL)]
     ).   
 
