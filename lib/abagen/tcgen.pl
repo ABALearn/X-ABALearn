@@ -121,7 +121,9 @@ print_rules([R|RR]) :-
 print_rule((H,B)) :-
     write(H), write(' :- '), print_bd(B).
 
-print_bd([A]) :- write(A), write('.').
+print_bd([A]) :- 
+    !,
+    write(A), write('.').
 print_bd([A1,A2|B]) :-
     write(A1), write(', '),
     print_bd([A2|B]).
@@ -175,6 +177,7 @@ generate_ex(E,L,Pred,Facts,Ex) :-
 arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,LearnPred,SEp,SEn) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
+    % generates only facts for predicates (no assumptions)
     findall(F/1,member(F,Pred),PredwArity),
     !,
     arclaims_from_extensions(M,ABAF,Cs,PredwArity, S,PEp,PEn),
@@ -190,6 +193,7 @@ arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,Lea
 % arclaims_from_extensions/7
 arclaims_from_extensions(x,ABAF,Cs,PredwArity, S,Ep,En) :-
     extension(ABAF,PredwArity, S),
+    %group_by_functor(S, Groups),
     arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).
 arclaims_from_extensions(a,ABAF,Cs,PredwArity, C,Ep,En) :-
     abaf_consequences(ABAF,PredwArity, C,B),
@@ -225,6 +229,27 @@ arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Cs, [(P/N,Ep,EpL)|Eps],[
     findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep), length(Ep,EpL), 
     findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,Brave)),En), length(En,EnL), 
     arclaims_from_extensions_aux(Cautious,Brave,Preds,Cs, Eps,Ens).    
+
+
+% group_by_functor(+Fs, -Groups)
+% Groups is a list of (P/N)-Facts pairs, one per predicate occurring in Fs
+group_by_functor(Fs, Groups) :-
+    map_list_to_pairs(functor_key,Fs,Ps),
+    keysort(Ps, Sorted),
+    group_pairs_by_key(Sorted, Groups).
+
+functor_key(F, P/N) :-
+    functor(F,P,N).
+
+
+% remove_args(+L,+C, -C1)
+% C1 is C without the constants occurring as arguments of the atoms in L
+% (C1 is sorted, without duplicates)
+remove_args(L,C, C1) :-
+    maplist(arg(1),L,As),
+    sort(As, Set),
+    sort(C, SC),
+    ord_subtract(SC,Set, C1).
 
 nonmember(E,L) :-
     memberchk(E,L), % assuming E ground
@@ -272,14 +297,12 @@ select_k(K,[_|Ts],M, Ps,Ls) :-
 select_cs(Ts,Cs, Ls,S) :-
     select_cs(Ts,Cs,0, Ls,S).
 
-select_cs([],_,S, [],S).
-select_cs([(P,L,N)|Ts],Cs,S0, [L|Ls],S) :-
-    memberchk(P,Cs),
+select_cs(_,[],S, [],S).
+select_cs(Ts,[P|Cs],S0, [L|Ls],S) :-
+    select((P,L,N),Ts,Rs),
     !,
     S1 is S0+N,
-    select_cs(Ts,Cs,S1, Ls,S).
-select_cs([_|Ts],Cs,S0, Ls,S) :-
-    select_cs(Ts,Cs,S0, Ls,S).    
+    select_cs(Rs,Cs,S1, Ls,S).   
     
 %
 abaf_consequences(ABAF,Ps, C,B) :-
@@ -369,17 +392,21 @@ not_in_facts([_Ex|Exs],Facts,CNex) :-
     not_in_facts(Exs,Facts,CNex).
 
 %
-rnd_select_lst(0,_,[]).
+rnd_select_lst(0,_,[]) :-
+    !.
 rnd_select_lst(N,L,[E|Ex]) :-
     N>=1,
+    !,
     N1 is N-1,
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex).
 
 %
-rnd_select_lst(0,R,[],R).
+rnd_select_lst(0,R,[],R) :-
+    !.
 rnd_select_lst(N,L,[E|Ex],R) :-
     N>=1,
+    !,
     N1 is N-1,
     random_select(E,L,L1),
     rnd_select_lst(N1,L1,Ex,R).
@@ -739,15 +766,6 @@ atoms2facts([A|As],[R|Rs]) :-
 args2Eqs([], [],[]).
 args2Eqs([A|As], [A=V|Eqs],[V|Vs]) :-
     args2Eqs(As, Eqs,Vs).
-
-%
-select_learnable_pred(Preds,Contr, LPreds) :-
-    findall(ContrP,(member((_,C),Contr),functor(C,ContrP,1)),ContrPs),
-    append(Preds,ContrPs, All),
-    sort(All,SPreds),
-    length(SPreds,NPreds),
-    random_between(1,NPreds,TBL),    
-    n_random_select(TBL,SPreds,LPreds).
 
 %
 read_abaf(FileName, ABAF) :-

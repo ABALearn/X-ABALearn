@@ -42,14 +42,10 @@ compute_conseq(Rs, Cs) :-
   % write rules to file
   dump_rules(Rs),
   % invoke clingo to compute the consequences of Rs and write them to cc.clingo
-  %shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --opt-mode=optN --quiet=1 > cc.clingo 2>> clingo.stderr.txt',_),
   shell('clingo ${ASP_INCL} asp.clingo --out-ifs=, --quiet=1 --time-limit=${CLINGO_TIME_LIMIT} > cc.clingo 2>> clingo.stderr.txt',_),
-  %shell('cat cc.clingo | grep \'^OPTIMUM FOUND\'  > /dev/null',EXIT_CODE), 
   shell('cat cc.clingo | grep \'^OPTIMUM FOUND\\|^SATISFIABLE\'',EXIT_CODE),
   EXIT_CODE == 0, % exit status of grep: 0 stands for 'One or more lines were selected.'
   !,
-  % TODO: assuming one solution
-  %shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { print "[",$0,"]."}\' > cc.pl'),
   shell('cat cc.clingo | grep -A1 \'^Answer:\' |  awk \'/Answer:/ {f=NR}; f && NR==f+1 { last = $0 } END { print "[" last "]." }\' > cc.pl'),
   see('cc.pl'),
   % read 'cc.clingo' and assert it into the database
@@ -119,6 +115,72 @@ ord([_|T],S) :-
   ord(T,S).
 ord([H|T],[H|S]) :-
   ord(T,S).
+
+%%% TODO: new way of calling CLINGO
+
+:- use_module(library(process)).
+
+% clingo_last_answer(-E,-Status)
+% Runs clingo on asp.clingo and returns the last answer set printed
+% as a list of atoms, with Status:
+%   optimum     - OPTIMUM FOUND: the search finished, E is optimal
+%   satisfiable - SATISFIABLE: E is the best found so far (e.g. time limit hit)
+% Fails if no answer set was found (UNSATISFIABLE or UNKNOWN).
+% At verbosity debugging, clingo's raw output is also saved to cc.clingo.
+clingo_last_answer(E,Status) :-
+    Cmd = 'clingo ${ASP_INCL} asp.clingo --out-ifs=, --quiet=1 --time-limit=${CLINGO_TIME_LIMIT} 2>> clingo.stderr.txt',
+    process_create(path(sh),['-c',Cmd],[stdout(pipe(Out)),process(Pid)]),
+    (   lopt(verbosity(7)) % TODO: update this option check
+    ->  open('cc.clingo',write,Save)
+    ;   Save = none
+    ),
+    call_cleanup(scan_lines(Out,Save,none,none, E,Status),
+                 (   close(Out),
+                     process_wait(Pid,_),
+                     close_save(Save)
+                 )).
+
+% scan_lines(+In,+Save,+E0,+S0, -E,-S)
+% Reads clingo's output line by line: E is the last answer set (none if absent),
+% S is optimum, satisfiable or none.
+scan_lines(In,Save,E0,S0, E,S) :-
+    read_line_to_string(In,L),
+    (   L == end_of_file
+    ->  (   E = E0,
+            S = S0
+        )
+    ;   (   save_line(Save,L),
+            scan_line(L,In,Save,E0,S0, E1,S1),
+            scan_lines(In,Save,E1,S1, E,S)
+        )
+    ).
+
+% the line after "Answer:" holds the atoms, separated by commas;
+% each new answer set replaces the previous one
+scan_line(L,In,Save,_,S, E,S) :-
+    string_concat("Answer:",_,L),
+    !,
+    read_line_to_string(In,AL),
+    save_line(Save,AL),
+    atomic_list_concat(['[',AL,']'],AS),
+    term_string(E,AS).
+scan_line(L,_,_,E,_, E,optimum) :-
+    string_concat("OPTIMUM FOUND",_,L),
+    !.
+scan_line(L,_,_,E,_, E,satisfiable) :-
+    string_concat("SATISFIABLE",_,L),
+    !.
+scan_line(_,_,_,E,S, E,S).
+
+save_line(none,_) :-
+    !.
+save_line(Save,L) :-
+    writeln(Save,L).
+
+close_save(none) :-
+    !.
+close_save(Save) :-
+    close(Save).
 
 % -----------------------------------------------------------------------------
 % R entails all elements in Ep and R does not entail any element of En
