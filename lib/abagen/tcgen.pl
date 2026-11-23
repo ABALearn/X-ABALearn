@@ -174,45 +174,55 @@ generate_ex(E,L,Pred,Facts,Ex) :-
     rnd_select_ex(E,Cex,Ex,_Rest).
 
 %
-arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,LearnPred,SEp,SEn) :-
+arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NLearnPred,Exsize, S,LearnPred,SEp,SEn) :-
     read_bk(ABAFPREDBaseFileName, In),
     rules_aba_utl(In, ABAF),
     % generates only facts for predicates (no assumptions)
     findall(F/1,member(F,Pred),PredwArity),
     !,
-    arclaims_from_extensions(M,ABAF,Cs,PredwArity, S,PEp,PEn),
-    %%% select examples
     random_between(30,60, P),
     PosSize is round(Exsize * P/100),
     NegSize is Exsize - PosSize,
-    generate_ex_from_claims(PEp,PEn,NPred,PosSize,NegSize, LearnPred,Ep,En),
+    arclaims_from_extensions(M,ABAF,Cs,PredwArity, S,Acs,Rjs,AcT,RjT), AcT >= PosSize, RjT >= NegSize, 
+    %%% select examples
+    write('claims #acc(#rej): '),
+    write(AcT), write('('), write(RjT), write('), '), 
+    write('trying to generate #pos(#neg): '),
+    write(PosSize), write('('), write(NegSize), write(')'), nl,
+    generate_ex_from_claims(Acs,Rjs,NLearnPred,PosSize,NegSize, LearnPred,Ep,En),
     rnd_select_lst(PosSize,Ep, SEp),
     rnd_select_lst(NegSize,En, SEn).   
 
 % arclaims_from_extensions/7
-arclaims_from_extensions(x,ABAF,Cs,PredwArity, S,Ep,En) :-
+arclaims_from_extensions(x,ABAF,Cs,PredwArity, S,Ep,En,AcT,RjT) :-
     extension(ABAF,PredwArity, S),
     group_by_functor(S, Groups),
-    arclaims_from_extension_aux(Groups,Cs, Ep,En).
-arclaims_from_extensions(a,ABAF,Cs,PredwArity, C,Ep,En) :-
+    arclaims_from_extension_aux(Groups,Cs,0,0, Ep,En,AcT,RjT).
+arclaims_from_extensions(a,ABAF,Cs,PredwArity, C,Ep,En,AcT,RjT) :-
     abaf_consequences(ABAF,PredwArity, C,B),
-    group_by_functor(C, Groups),
-    arclaims_from_extensions_aux(Groups,B,Cs, Ep,En).
+    group_by_functor(C, CGroups), 
+    group_by_functor(B, BGroups),
+    arclaims_from_extensions_aux(CGroups,BGroups,Cs,0,0, Ep,En,AcT,RjT).
   
-% S is a list
-arclaims_from_extension_aux([],_Cs, [],[]).
-arclaims_from_extension_aux([P/N-Ac|Gs],Cs, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs]) :-
+% x-acceptance
+arclaims_from_extension_aux([],_Cs,AcTO,RjTO, [],[],AcTO,RjTO).
+arclaims_from_extension_aux([P/N-Ac|Gs],Cs,AcTI,RjTI, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs],AcTO,RjTO) :-
     length(Ac,AcL),
     rejcl(P,Ac,Cs, Rj),
     length(Rj,RjL),
-    arclaims_from_extension_aux(Gs,Cs, Acs,Rjs).
-% S is a list of list
-arclaims_from_extensions_aux([],_B,_Cs, [],[]).
-arclaims_from_extensions_aux([P/N-Ac|Gs],B,Cs, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs]) :-
+    AcTI1 is AcTI + AcL,
+    RjTI1 is RjTI + RjL,
+    arclaims_from_extension_aux(Gs,Cs,AcTI1,RjTI1, Acs,Rjs,AcTO,RjTO).
+% a-acceptance
+arclaims_from_extensions_aux([],_B,_Cs,AcTO,RjTO, [],[],AcTO,RjTO).
+arclaims_from_extensions_aux([P/N-Ac|Gs],BGroups,Cs,AcTI,RjTI, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs],AcTO,RjTO) :-
     length(Ac,AcL),
-    rejcl(P,B,Cs, Rj),
-    length(Rj,RjL), 
-    arclaims_from_extensions_aux(Gs,B,Cs, Acs,Rjs).    
+    select(P/N-BAc,BGroups,BGroups1),
+    rejcl(P,BAc,Cs, Rj),
+    length(Rj,RjL),
+    AcTI1 is AcTI + AcL,
+    RjTI1 is RjTI + RjL,    
+    arclaims_from_extensions_aux(Gs,BGroups1,Cs,AcTI1,RjTI1, Acs,Rjs,AcTO,RjTO).    
 
 % group_by_functor(+Fs, -Groups)
 % Groups is a list of (P/N)-Facts pairs, one per predicate occurring in Fs
@@ -243,8 +253,8 @@ make_atom(P,C, A) :-
     A =.. [P,C].
 
 %
-generate_ex_from_claims(Acc,Rej,NPred,PosSize,NegSize, Ps,FLs1,FLs2) :-
-    rnd_select_k(Acc,NPred,PosSize, Ps,Ls1),
+generate_ex_from_claims(Acc,Rej,NLearnPred,PosSize,NegSize, Ps,FLs1,FLs2) :-
+    rnd_select_k(Acc,NLearnPred,PosSize, Ps,Ls1),
     select_cs(Rej,Ps, Ls2,S2),
     S2 >= NegSize,
     flatten(Ls1,FLs1),
@@ -557,7 +567,8 @@ abalp_filename(BaseFileNameIn, BaseFileNameOut,ABAFFileName) :-
 try(Max,G) :-
   try_aux(1,Max,G).
 try_aux(N,Max,_) :-
-  N >= Max, !.
+  N >= Max, !,
+  write('WARNING: '), write('try: failed '), write(Max), write(' times!'), nl.
 try_aux(N,Max,G) :-
   N =< Max,
   ( G -> true ; ( M is N+1, try_aux(M,Max,G) ) ).
@@ -575,15 +586,15 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     told,
     % LearnPred is a subset of the predicates different from assumptions
     ( Type == tabular 
-    ->  NPred = 1
+    ->  NLearnPred = 1
     ;   (  length(Pred,NPred),
            random_between(1,NPred,TBL),
-           NPred = TBL % TBL1 is min(30,TBL),    
+           NLearnPred = TBL % TBL1 is min(30,TBL),    
         )
     ),
     % Examples are generated from extensions
     constants_in(Facts, Cs),
-    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Pred,Cs,NPred,Exsize, S,LearnPred,Ep,En) -> 
+    ( arclaims_from_extensions_file(Mode,ORACLEFileName,Pred,Cs,NLearnPred,Exsize, S,LearnPred,Ep,En) -> 
       true 
     ; 
       ( delete_file(ORACLEFileName), fail ) 
@@ -596,7 +607,7 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,
     write('  Asms.:   '), length(Asms,AsmsL), write(AsmsL), nl,
     write('  Cont.:   '), length(Contr,ContrL), write(ContrL), nl,
-    write('  Learn.:  '), write(NPred), write(' '), write(LearnPred), nl,          
+    write('  Learn.:  '), write(NLearnPred), write(' '), write(LearnPred), nl,          
     %%% generate an ABAF learning problem of type Type  
     export_abalpb(Type,BaseFileName,S,Facts,Rules,Contr,LearnPred, ABALPBFileName,SFacts,SRules),
     !,
@@ -621,7 +632,7 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     %term_to_atom(LearnPred,NormLearnPredAtom),
     %term_string(FileName,FileNameS),    
     append_csv_data('tcgen.csv', 
-        [row(ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,NPred,Mode,
+        [row(ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,NLearnPred,Mode,
              ABALPBFileName,SFactsL,SRulesL,EpL,EnL)]
     ).   
 
@@ -801,10 +812,8 @@ append_csv_data(File, Rows) :-
 
 % generate a test cases of size BKsize with E examples each for mode M
 tcgen(Mode,Type,BKsize,Exsize) :-
-  try(50,export_abalpb(Mode,Type,BKsize,Exsize)),
-  !.
-tcgen(Mode,Type,BKsize,Exsize) :-
-  write('WARNING: '), write(tcgen(Mode,Type,BKsize,Exsize)), write('failed 50 times!'), nl.
+  try(50,export_abalpb(Mode,Type,BKsize,Exsize)).
+  
 
 % generate N test cases
 tcgen(0,_Mode,_Type,_BKsize,_Exsize).
