@@ -183,8 +183,7 @@ arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,Lea
     arclaims_from_extensions(M,ABAF,Cs,PredwArity, S,PEp,PEn),
     %%% select examples
     random_between(30,60, P),
-    Exsize1 is Exsize - 5,
-    PosSize is round(Exsize1 * P/100) + 5,
+    PosSize is round(Exsize * P/100),
     NegSize is Exsize - PosSize,
     generate_ex_from_claims(PEp,PEn,NPred,PosSize,NegSize, LearnPred,Ep,En),
     rnd_select_lst(PosSize,Ep, SEp),
@@ -193,43 +192,27 @@ arclaims_from_extensions_file(M,ABAFPREDBaseFileName,Pred,Cs,NPred,Exsize, S,Lea
 % arclaims_from_extensions/7
 arclaims_from_extensions(x,ABAF,Cs,PredwArity, S,Ep,En) :-
     extension(ABAF,PredwArity, S),
-    %group_by_functor(S, Groups),
-    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).
+    group_by_functor(S, Groups),
+    arclaims_from_extension_aux(Groups,Cs, Ep,En).
 arclaims_from_extensions(a,ABAF,Cs,PredwArity, C,Ep,En) :-
     abaf_consequences(ABAF,PredwArity, C,B),
-    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).
-
-% arclaims_from_extensions/8
-arclaims_from_extensions(x,ABAF,Type,PredwArity,Cs, S,Ep,En) :-
-    Type=tabular,
-    !,
-    extension(ABAF,[], S),
-    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).
-arclaims_from_extensions(x,ABAF,_Type,PredwArity,Cs, S,Ep,En) :-
-    extension(ABAF,PredwArity, S),
-    arclaims_from_extension_aux(S,PredwArity,Cs, Ep,En).    
-arclaims_from_extensions(a,ABAF,Type,PredwArity,Cs, C,Ep,En) :-
-    Type=tabular,
-    !,
-    abaf_consequences(ABAF,[], C,B),
-    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).
-arclaims_from_extensions(a,ABAF,_Type,PredwArity,Cs, C,Ep,En) :-
-    abaf_consequences(ABAF,PredwArity, C,B),
-    arclaims_from_extensions_aux(C,B,PredwArity,Cs, Ep,En).    
-    
+    group_by_functor(C, Groups),
+    arclaims_from_extensions_aux(Groups,B,Cs, Ep,En).
+  
 % S is a list
-arclaims_from_extension_aux(_S,[],_Cs, [],[]).
-arclaims_from_extension_aux(S,[P/N|Preds],Cs, [(P/N,Ep,EpL)|Eps],[(P/N,En,EnL)|Ens]) :-
-    findall(Pos,(member(Pos,S),functor(Pos,P,N)),Ep), length(Ep,EpL), 
-    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,S)),En), length(En,EnL), 
-    arclaims_from_extension_aux(S,Preds,Cs, Eps,Ens).
+arclaims_from_extension_aux([],_Cs, [],[]).
+arclaims_from_extension_aux([P/N-Ac|Gs],Cs, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs]) :-
+    length(Ac,AcL),
+    rejcl(P,Ac,Cs, Rj),
+    length(Rj,RjL),
+    arclaims_from_extension_aux(Gs,Cs, Acs,Rjs).
 % S is a list of list
-arclaims_from_extensions_aux(_C,_B,[],_Cs, [],[]).
-arclaims_from_extensions_aux(Cautious,Brave,[P/N|Preds],Cs, [(P/N,Ep,EpL)|Eps],[(P/N,En,EnL)|Ens]) :-
-    findall(Pos,(member(Pos,Cautious),functor(Pos,P,N)),Ep), length(Ep,EpL), 
-    findall(Neg,(member(C,Cs),Neg=..[P,C],\+member(Neg,Brave)),En), length(En,EnL), 
-    arclaims_from_extensions_aux(Cautious,Brave,Preds,Cs, Eps,Ens).    
-
+arclaims_from_extensions_aux([],_B,_Cs, [],[]).
+arclaims_from_extensions_aux([P/N-Ac|Gs],B,Cs, [(P/N,Ac,AcL)|Acs],[(P/N,Rj,RjL)|Rjs]) :-
+    length(Ac,AcL),
+    rejcl(P,B,Cs, Rj),
+    length(Rj,RjL), 
+    arclaims_from_extensions_aux(Gs,B,Cs, Acs,Rjs).    
 
 % group_by_functor(+Fs, -Groups)
 % Groups is a list of (P/N)-Facts pairs, one per predicate occurring in Fs
@@ -238,24 +221,26 @@ group_by_functor(Fs, Groups) :-
     keysort(Ps, Sorted),
     group_pairs_by_key(Sorted, Groups).
 
+% functor_key(+F, -P/N)
+% P/N is the predicate indicator of the term F
+% (P its name, N its arity), used as a key for grouping.
 functor_key(F, P/N) :-
     functor(F,P,N).
 
+% Rj is a list of atoms of the form P(C), where C is a
+% constant in Cs that does not occur as the argument of
+% an atom in S.
+rejcl(P,S,Cs, Rj) :-
+    maplist(arg(1),S,As),
+    sort(As, TBD),
+    sort(Cs, All),
+    ord_subtract(All,TBD, Cs1),
+    maplist(make_atom(P),Cs1,Rj).
 
-% remove_args(+L,+C, -C1)
-% C1 is C without the constants occurring as arguments of the atoms in L
-% (C1 is sorted, without duplicates)
-remove_args(L,C, C1) :-
-    maplist(arg(1),L,As),
-    sort(As, Set),
-    sort(C, SC),
-    ord_subtract(SC,Set, C1).
-
-nonmember(E,L) :-
-    memberchk(E,L), % assuming E ground
-    !,
-    fail.
-nonmember(_,_).
+% make_atom(+P,+C, -A)
+% A is the atom P(C)
+make_atom(P,C, A) :-
+    A =.. [P,C].
 
 %
 generate_ex_from_claims(Acc,Rej,NPred,PosSize,NegSize, Ps,FLs1,FLs2) :-
@@ -579,7 +564,7 @@ try_aux(N,Max,G) :-
 
 % export_abalpb/4
 export_abalpb(Mode,Type,BKsize,Exsize) :-
-    ( BKsize>=10, Exsize>=10 ),
+    ( BKsize>=10, Exsize>=5 ),
     oracle_hparams(BKsize, R,P,C,A,F,BdL),
     gensym('abaf.',BaseFileName),
     generate_abaf(P,C,A,F,BdL,R, Pred,Univ,Facts,Rules,Asms,Contr),
