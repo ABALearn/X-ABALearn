@@ -442,6 +442,19 @@ rem_pred_rules([R|Rs],ExPred,Rs1) :-
 rem_pred_rules([R|Rs],ExPred,[R|Rs1]) :-
     rem_pred_rules(Rs,ExPred,Rs1).
 
+% rem_pred_rules(+Rs, +ExPred, -RsO)
+% RsO is obtained from Rs by removing every rule whose head predicate
+% occurs in ExPred and every rule whose body contains at least one
+% atom whose predicate occurs in ExPred.
+rem_pred_rules([],_,[],[]).
+rem_pred_rules([R|Rs],ExPred,Rs1,[R|RRs]) :-
+    R=(H,B),
+    pred_in([H|B],ExPred), 
+    !,
+    rem_pred_rules(Rs,ExPred,Rs1,RRs).
+rem_pred_rules([R|Rs],ExPred,[R|Rs1],RRs) :-
+    rem_pred_rules(Rs,ExPred,Rs1,RRs).    
+
 %
 pred_in([E|_],ExPred) :-
     functor(E,F,1),
@@ -593,7 +606,7 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
         )
     ),
     % Examples are generated from extensions
-    constants_in(Facts, Cs),
+    constants_in(Facts, FCs), sort(FCs,Cs),
     ( arclaims_from_extensions_file(Mode,ORACLEFileName,Pred,Cs,NLearnPred,Exsize, S,LearnPred,Ep,En) -> 
       true 
     ; 
@@ -606,7 +619,7 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     write('  Pred.:   '), length(Pred,PredL), write(PredL), nl,
     write('  Univ.:   '), length(Univ,UnivL), write(UnivL), nl,
     write('  Asms.:   '), length(Asms,AsmsL), write(AsmsL), nl,
-    write('  Cont.:   '), length(Contr,ContrL), write(ContrL), nl,
+    write('  Cont.:   '), sort(Contr,SContr), length(SContr,ContrL), write(ContrL), nl,
     write('  Learn.:  '), write(NLearnPred), write(' '), write(LearnPred), nl,          
     %%% generate an ABAF learning problem of type Type  
     export_abalpb(Type,BaseFileName,S,Facts,Rules,Contr,LearnPred, ABALPBFileName,SFacts,SRules),
@@ -630,9 +643,9 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
     write('  Neg.Ex.: '), length(En,EnL), write(EnL), nl,    
     %%%
     %term_to_atom(LearnPred,NormLearnPredAtom),
-    %term_string(FileName,FileNameS),    
+    %term_string(FileName,FileNameS),   
     append_csv_data('tcgen.csv', 
-        [row(ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,NLearnPred,Mode,
+        [row(FileName,ORACLEFileName,BKsize,FactsL,RulesL,PredL,UnivL,AsmsL,ContrL,Exsize,NLearnPred,Mode,
              ABALPBFileName,SFactsL,SRulesL,EpL,EnL)]
     ).   
 
@@ -746,10 +759,21 @@ export_abalpb(Type,BaseFileName,S,_Facts,_Rules,_Contr,LearnPred, TABLPFileName,
     !,
     tablp_filename(BaseFileName,TABLPFileName),    
     atoms2facts(S,Facts),
-    rem_pred_rules(Facts,[dom/1|LearnPred], SFacts),
-    tell(TABLPFileName),    
-    print_abaf(SFacts,[],[]),
-    told.
+    rem_pred_rules(Facts,[dom/1|LearnPred], SFacts,RFacts),
+    constants_in(RFacts,RConst), sort(RConst,SRConst),
+    constants_in(SFacts,SConst), sort(SConst,SSConst),
+    (   ord_subset(SRConst,SSConst) 
+    ->  (   tell(TABLPFileName),    
+            print_abaf(SFacts,[],[]),
+            told
+        )
+    ;
+        (   oracle_filename(BaseFileName,ORACLEFileName),
+            delete_file(ORACLEFileName),
+           fail 
+      )        
+    ).
+
 
 atoms2facts([],[]).
 atoms2facts([A|As],[R|Rs]) :-
@@ -760,7 +784,7 @@ atoms2facts([A|As],[R|Rs]) :-
     atoms2facts(As,Rs).
 %
 args2Eqs([], [],[]).
-args2Eqs([A|As], [A=V|Eqs],[V|Vs]) :-
+args2Eqs([A|As], [V=A|Eqs],[V|Vs]) :-
     args2Eqs(As, Eqs,Vs).
 
 %
@@ -799,7 +823,7 @@ append_csv_data(File, Rows) :-
         open(File, append, Out),
         (( NeedsHeader == true ->
           % write header row
-          csv_write_stream(Out, [row('Oracle','#BK','#Facts','#Rules','#Preds','#Asms','#Const','#Ex','#Learn','Mode',
+          csv_write_stream(Out, [row('TC','Oracle','#BK','#Facts','#Rules','#Preds','#Univ','#Asms','#Contr','#Ex','#Learn','Mode',
                                      'ABAFLP','#Facts','#Rules','#Ep','#En')], [])
           ;   
             true
@@ -815,10 +839,34 @@ tcgen(Mode,Type,BKsize,Exsize) :-
   try(50,export_abalpb(Mode,Type,BKsize,Exsize)).
   
 
-% generate N test cases
-tcgen(0,_Mode,_Type,_BKsize,_Exsize).
 tcgen(N,Mode,Type,BKsize,Exsize) :-
-  N>=1,
-  N1 is N-1,
-  tcgen(Mode,Type,BKsize,Exsize),
-  tcgen(N1,Mode,Type,BKsize,Exsize).
+    ablp_dirname(Mode,Type,BKsize,Exsize, Dir),
+    (   exists_directory(Dir)
+    ->  true
+    ;   make_directory(Dir)
+    ),
+    setup_call_cleanup(
+        working_directory(Old, Dir),
+        tcgen_aux(N,Mode,Type,BKsize,Exsize),
+        working_directory(_, Old)
+    ).
+    
+
+% generate N test cases
+tcgen_aux(0,_Mode,_Type,_BKsize,_Exsize) :-
+    !.
+tcgen_aux(N,Mode,Type,BKsize,Exsize) :-
+    N>=1,
+    N1 is N-1,
+    tcgen(Mode,Type,BKsize,Exsize),
+    tcgen_aux(N1,Mode,Type,BKsize,Exsize).
+
+%
+ablp_dirname(Mode,Type,BKsize,Exsize, DirName) :-
+    type2atom(Type,TypeAtom),
+    atomic_list_concat([TypeAtom,'.',Mode,'.',BKsize,'.',Exsize],DirName).
+%
+type2atom(tabular,tablp).
+type2atom(general,genlp). 
+type2atom(disjoint,dislp).
+type2atom(constrained,cnslp).         

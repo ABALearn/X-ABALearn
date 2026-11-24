@@ -15,18 +15,12 @@ tcrun_csv_aux([TC|TCs]) :-
 
 tcrun(TC) :-
   consult(TC),
-  findall(Name,bk(Name),BKs),
-  learn_and_test_ABAFs(BKs),
+  bk(Name),
+  learn_and_test(Name),
+  performance_eval(Name),  
   retractall(bk(_)),
   retractall(lp(_)),
   retractall(fold(_,_,_,_,_)).
-
-%
-learn_and_test_ABAFs([]).
-learn_and_test_ABAFs([BK|BKs]) :-
-  learn_and_test(BK),
-  performance_eval(BK),
-  learn_and_test_ABAFs(BKs).
 
 %
 learn_and_test(BK) :-
