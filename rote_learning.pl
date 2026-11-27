@@ -17,8 +17,7 @@
 roLe(Ri,Ep0,En0,Ep,En,LPreds, RLRs,Ro) :-
   ( LPreds==[] -> learnable_predicates(Ri,Ep, Ls) ; Ls=LPreds ),
   % compute the set of sets representing solutions to the learning problem
-  rote_lerning_solver(Ri,Ep0,En0,Ep,En,Ls, AsList), % fails if no sol. to learning prob. can be found 
-  member(As, AsList), % As is set of atoms whose predicates occur in Ls                 
+  rote_lerning_solver(Ri,Ep0,En0,Ep,En,Ls, As), % fails if no sol. to learning prob. can be found          
   findall(R, ( member(A,As), e_rote_learn(A,R) ), RLRs),
   % add learnt positive examples and contraries to Ri
   aba_ni_rules_append(Ri,RLRs,Ri1),

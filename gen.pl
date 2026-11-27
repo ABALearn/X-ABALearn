@@ -63,11 +63,12 @@ gen2(Ri,Ep0,En0,Ep,En,F, Rf) :-
   functor(C,P,N),
   write('gen2: generating NEW assumption: '), show_term(A), nl,
   write(' assumption introduction result: '), show_rule(FwAP), nl,
-  rote_lerning_solver(Ra,Ep0,En0,Ep,En,[P/N], Cs),
-  ( Cs \==[] -> 
-    member(RgAS, Cs)
-    ; 
-    ( write('gen2: extended ABA w/new assumption has no extensions!'), nl, fail ) 
+  (   rote_lerning_solver(Ra,Ep0,En0,Ep,En,[P/N], RgAS)
+  ->  true
+  ;   (   write('gen2: extended ABA w/new assumption has no extensions!'),
+          nl,
+          fail
+      )
   ),
   write(' selected set: '), write(RgAS), nl,
   gen4(Ri,Ep0,En0,Ep,En,F,Ra,A,RgAS,FwAP, Rf).

@@ -651,10 +651,10 @@ export_abalpb(Mode,Type,BKsize,Exsize) :-
 
 %
 oracle_hparams(BKsize, R,P,C,A,F,BdL) :-
-    R is max(1,div(BKsize,4)),
+    R is max(1,div(BKsize,5)),
     F is BKsize-R,
-    P is 10 + div(BKsize,20),
-    C is div(BKsize,3),
+    P is 5 + div(BKsize,20),
+    C is div(BKsize,2),
     A is 1 + div(P,3),
     BdL=2.    
 
